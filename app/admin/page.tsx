@@ -208,7 +208,7 @@ export default function AdminPage() {
           {categories.length > 0 && (
             <ul className="mt-3 flex flex-wrap gap-2">
               {categories.map((c) => (
-                <li key={c.id} className="bg-gray-800 px-3 py-1 rounded-full text-sm">
+                <li key={c.id} className="bg-gray-100 text-gray-700 px-3 py-1 rounded-full text-sm">
                   {c.name}
                 </li>
               ))}
@@ -226,7 +226,7 @@ export default function AdminPage() {
               <select
                 value={selectedCategoryId}
                 onChange={(e) => setSelectedCategoryId(e.target.value)}
-                className="bg-gray-800 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="bg-gray-100 text-gray-900 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
               >
                 {categories.length === 0 && (
                   <option value="">（先にカテゴリを作成してください）</option>
@@ -247,8 +247,8 @@ export default function AdminPage() {
               onClick={() => inputRef.current?.click()}
               className={`flex flex-col items-center justify-center gap-2 border-2 border-dashed rounded-xl py-10 cursor-pointer transition-colors select-none ${
                 dragOver
-                  ? "border-blue-400 bg-blue-950/30"
-                  : "border-gray-600 hover:border-gray-400 bg-gray-900/40"
+                  ? "border-blue-400 bg-blue-50"
+                  : "border-gray-300 hover:border-gray-500 bg-gray-50"
               }`}
             >
               <svg className="w-10 h-10 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.2}>

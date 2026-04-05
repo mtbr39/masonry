@@ -27,28 +27,28 @@ export default function LoginPage() {
   }
 
   return (
-    <main className="min-h-screen bg-gray-950 flex items-center justify-center">
-      <div className="w-full max-w-sm bg-gray-900 rounded-2xl p-8 shadow-xl">
-        <h1 className="text-2xl font-bold text-white mb-6">Admin Login</h1>
+    <main className="min-h-screen bg-white flex items-center justify-center">
+      <div className="w-full max-w-sm bg-white border border-gray-200 rounded-2xl p-8 shadow-sm">
+        <h1 className="text-2xl font-bold text-gray-900 mb-6">Admin Login</h1>
         <form onSubmit={handleSubmit} className="flex flex-col gap-4">
           <div className="flex flex-col gap-1">
-            <label className="text-sm text-gray-400">Email</label>
+            <label className="text-sm text-gray-600">Email</label>
             <input
               type="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               required
-              className="bg-gray-800 text-white rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="bg-gray-100 text-gray-900 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
           </div>
           <div className="flex flex-col gap-1">
-            <label className="text-sm text-gray-400">Password</label>
+            <label className="text-sm text-gray-600">Password</label>
             <input
               type="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               required
-              className="bg-gray-800 text-white rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="bg-gray-100 text-gray-900 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
           </div>
           {error && <p className="text-red-400 text-sm">{error}</p>}
