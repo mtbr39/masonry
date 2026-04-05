@@ -40,10 +40,10 @@ export default function HomePage() {
   }));
 
   return (
-    <main className="min-h-screen bg-gray-950 text-white">
+    <main className="min-h-screen bg-white text-gray-900">
       <header className="px-6 py-8 flex items-center justify-between">
         <h1 className="text-3xl font-bold tracking-tight">Photo Portfolio</h1>
-        <a href="/admin" className="text-sm text-gray-400 hover:text-white transition-colors">
+        <a href="/admin" className="text-sm text-gray-500 hover:text-gray-900 transition-colors">
           Admin
         </a>
       </header>
@@ -66,8 +66,8 @@ export default function HomePage() {
               onClick={() => setSelectedCategory(c.id)}
               className={`px-4 py-1.5 rounded-full text-sm transition-colors ${
                 selectedCategory === c.id
-                  ? "bg-white text-gray-950"
-                  : "bg-gray-800 hover:bg-gray-700"
+                  ? "bg-gray-900 text-white"
+                  : "bg-gray-100 hover:bg-gray-200 text-gray-700"
               }`}
             >
               {c.name}
@@ -80,7 +80,7 @@ export default function HomePage() {
         {loading ? (
           <div className="flex justify-center py-20 text-gray-400">Loading…</div>
         ) : albumPhotos.length === 0 ? (
-          <div className="flex justify-center py-20 text-gray-400">No photos yet.</div>
+          <div className="flex justify-center py-20 text-gray-500">No photos yet.</div>
         ) : (
           <MasonryPhotoAlbum
             photos={albumPhotos}
