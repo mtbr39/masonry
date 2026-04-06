@@ -187,6 +187,19 @@ export default function AdminPage() {
       </header>
 
       <div className="max-w-2xl mx-auto px-6 py-10 flex flex-col gap-10">
+        {/* キャンバスエディタへのリンク */}
+        <section>
+          <a
+            href="/admin/canvas"
+            className="flex items-center justify-between px-5 py-4 rounded-xl border border-blue-200 bg-blue-50 hover:bg-blue-100 transition-colors"
+          >
+            <div>
+              <p className="font-semibold text-blue-800">キャンバスを編集</p>
+              <p className="text-sm text-blue-600 mt-0.5">写真・テキストをドラッグして自由に配置</p>
+            </div>
+            <span className="text-blue-400 text-xl">→</span>
+          </a>
+        </section>
         {/* カテゴリ追加 */}
         <section>
           <h2 className="text-lg font-semibold mb-4">カテゴリを追加</h2>

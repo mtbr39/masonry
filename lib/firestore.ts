@@ -6,9 +6,12 @@ import {
   orderBy,
   serverTimestamp,
   Timestamp,
+  doc,
+  getDoc,
+  setDoc,
 } from "firebase/firestore";
 import { db } from "./firebase";
-import { Category, Photo } from "./types";
+import { Category, Photo, CanvasItem } from "./types";
 
 export async function getCategories(): Promise<Category[]> {
   const snap = await getDocs(collection(db, "categories"));
@@ -44,4 +47,14 @@ export async function addPhoto(photo: Omit<Photo, "id" | "createdAt">): Promise<
     createdAt: serverTimestamp(),
   });
   return ref.id;
+}
+
+export async function getCanvasLayout(categoryId = "default"): Promise<CanvasItem[]> {
+  const snap = await getDoc(doc(db, "canvas", categoryId));
+  if (!snap.exists()) return [];
+  return (snap.data().items ?? []) as CanvasItem[];
+}
+
+export async function saveCanvasLayout(items: CanvasItem[], categoryId = "default"): Promise<void> {
+  await setDoc(doc(db, "canvas", categoryId), { items });
 }
