@@ -6,7 +6,7 @@ export interface Category {
 export interface Photo {
   id: string;
   url: string;
-  categoryId: string;
+  categoryId?: string;
   createdAt: Date;
   width: number;
   height: number;

@@ -10,15 +10,20 @@ const CANVAS_H = 2000;
 
 export default function HomePage() {
   const [categories, setCategories] = useState<Category[]>([]);
-  const [selectedCategory, setSelectedCategory] = useState<string>("default");
+  const [selectedCategory, setSelectedCategory] = useState<string>("");
   const [items, setItems] = useState<CanvasItem[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    getCategories().then(setCategories);
+    getCategories().then((cats) => {
+      setCategories(cats);
+      if (cats.length > 0) setSelectedCategory(cats[0].id);
+      else setLoading(false);
+    });
   }, []);
 
   useEffect(() => {
+    if (!selectedCategory) return;
     setLoading(true);
     getCanvasLayout(selectedCategory).then((data) => {
       setItems(data);
@@ -39,16 +44,6 @@ export default function HomePage() {
         {/* カテゴリサイドバー */}
         {categories.length > 0 && (
           <nav className="shrink-0 w-32 px-6 py-4 flex flex-col gap-1 overflow-y-auto border-r border-gray-100 bg-white z-10">
-            <button
-              onClick={() => setSelectedCategory("default")}
-              className={`text-left text-sm py-1 transition-colors ${
-                selectedCategory === "default"
-                  ? "text-gray-900 font-semibold"
-                  : "text-gray-400 hover:text-gray-900"
-              }`}
-            >
-              All
-            </button>
             {categories.map((c) => (
               <button
                 key={c.id}

@@ -9,6 +9,8 @@ import {
   doc,
   getDoc,
   setDoc,
+  updateDoc,
+  deleteDoc,
 } from "firebase/firestore";
 import { db } from "./firebase";
 import { Category, Photo, CanvasItem } from "./types";
@@ -21,6 +23,16 @@ export async function getCategories(): Promise<Category[]> {
 export async function addCategory(name: string): Promise<string> {
   const ref = await addDoc(collection(db, "categories"), { name });
   return ref.id;
+}
+
+export async function updateCategory(id: string, name: string): Promise<void> {
+  await updateDoc(doc(db, "categories", id), { name });
+}
+
+export async function deleteCategory(id: string): Promise<void> {
+  await deleteDoc(doc(db, "categories", id));
+  // 対応するキャンバスレイアウトも削除
+  await deleteDoc(doc(db, "canvas", id)).catch(() => {});
 }
 
 export async function getPhotos(categoryId?: string): Promise<Photo[]> {

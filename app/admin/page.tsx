@@ -6,7 +6,7 @@ import { signOut } from "firebase/auth";
 import { ref, uploadBytesResumable, getDownloadURL } from "firebase/storage";
 import { useAuth } from "@/context/AuthContext";
 import { auth, storage } from "@/lib/firebase";
-import { getCategories, addCategory, addPhoto } from "@/lib/firestore";
+import { getCategories, addCategory, addPhoto, updateCategory, deleteCategory } from "@/lib/firestore";
 import { Category } from "@/lib/types";
 
 const MAX_WIDTH = 3000;
@@ -56,8 +56,9 @@ export default function AdminPage() {
   const router = useRouter();
 
   const [categories, setCategories] = useState<Category[]>([]);
-  const [selectedCategoryId, setSelectedCategoryId] = useState("");
   const [newCategoryName, setNewCategoryName] = useState("");
+  const [editingCategoryId, setEditingCategoryId] = useState<string | null>(null);
+  const [editingCategoryName, setEditingCategoryName] = useState("");
   const [files, setFiles] = useState<FileEntry[]>([]);
   const [uploading, setUploading] = useState(false);
   const [message, setMessage] = useState("");
@@ -70,10 +71,7 @@ export default function AdminPage() {
 
   useEffect(() => {
     if (user) {
-      getCategories().then((cats) => {
-        setCategories(cats);
-        if (cats.length > 0) setSelectedCategoryId(cats[0].id);
-      });
+      getCategories().then(setCategories);
     }
   }, [user]);
 
@@ -112,16 +110,38 @@ export default function AdminPage() {
     e.preventDefault();
     if (!newCategoryName.trim()) return;
     const id = await addCategory(newCategoryName.trim());
-    const updated = [...categories, { id, name: newCategoryName.trim() }];
-    setCategories(updated);
-    setSelectedCategoryId(id);
+    setCategories((prev) => [...prev, { id, name: newCategoryName.trim() }]);
     setNewCategoryName("");
+  }
+
+  function startEditCategory(c: Category) {
+    setEditingCategoryId(c.id);
+    setEditingCategoryName(c.name);
+  }
+
+  async function saveEditCategory() {
+    if (!editingCategoryId || !editingCategoryName.trim()) {
+      setEditingCategoryId(null);
+      return;
+    }
+    const name = editingCategoryName.trim();
+    await updateCategory(editingCategoryId, name);
+    setCategories((prev) =>
+      prev.map((c) => (c.id === editingCategoryId ? { ...c, name } : c))
+    );
+    setEditingCategoryId(null);
+  }
+
+  async function handleDeleteCategory(id: string) {
+    if (!confirm("このカテゴリを削除しますか？対応するキャンバスも削除されます。")) return;
+    await deleteCategory(id);
+    setCategories((prev) => prev.filter((c) => c.id !== id));
   }
 
   async function handleUpload(e: React.SyntheticEvent<HTMLFormElement>) {
     e.preventDefault();
     const pending = files.filter((f) => f.status === "pending");
-    if (!pending.length || !selectedCategoryId) return;
+    if (!pending.length) return;
     setUploading(true);
     setMessage("");
 
@@ -149,7 +169,7 @@ export default function AdminPage() {
         });
 
         const url = await getDownloadURL(storageRef);
-        await addPhoto({ url, categoryId: selectedCategoryId, width, height });
+        await addPhoto({ url, categoryId: "", width, height });
         setFiles((prev) =>
           prev.map((f) => (f.id === entry.id ? { ...f, status: "done", progress: 100 } : f))
         );
@@ -219,10 +239,59 @@ export default function AdminPage() {
             </button>
           </form>
           {categories.length > 0 && (
-            <ul className="mt-3 flex flex-wrap gap-2">
+            <ul className="mt-3 flex flex-col gap-2">
               {categories.map((c) => (
-                <li key={c.id} className="bg-gray-100 text-gray-700 px-3 py-1 rounded-full text-sm">
-                  {c.name}
+                <li
+                  key={c.id}
+                  className="flex items-center gap-2 bg-gray-100 text-gray-700 px-3 py-2 rounded-lg text-sm"
+                >
+                  {editingCategoryId === c.id ? (
+                    <>
+                      <input
+                        type="text"
+                        value={editingCategoryName}
+                        onChange={(e) => setEditingCategoryName(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") saveEditCategory();
+                          if (e.key === "Escape") setEditingCategoryId(null);
+                        }}
+                        autoFocus
+                        className="flex-1 bg-white text-gray-900 rounded px-2 py-1 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      />
+                      <button
+                        type="button"
+                        onClick={saveEditCategory}
+                        className="text-blue-600 hover:text-blue-800 text-xs font-medium"
+                      >
+                        保存
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setEditingCategoryId(null)}
+                        className="text-gray-500 hover:text-gray-800 text-xs"
+                      >
+                        キャンセル
+                      </button>
+                    </>
+                  ) : (
+                    <>
+                      <span className="flex-1">{c.name}</span>
+                      <button
+                        type="button"
+                        onClick={() => startEditCategory(c)}
+                        className="text-blue-600 hover:text-blue-800 text-xs"
+                      >
+                        編集
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleDeleteCategory(c.id)}
+                        className="text-red-500 hover:text-red-700 text-xs"
+                      >
+                        削除
+                      </button>
+                    </>
+                  )}
                 </li>
               ))}
             </ul>
@@ -233,25 +302,6 @@ export default function AdminPage() {
         <section>
           <h2 className="text-lg font-semibold mb-4">写真をアップロード</h2>
           <form onSubmit={handleUpload} className="flex flex-col gap-4">
-            {/* カテゴリ選択 */}
-            <div className="flex flex-col gap-1">
-              <label className="text-sm text-gray-400">カテゴリ</label>
-              <select
-                value={selectedCategoryId}
-                onChange={(e) => setSelectedCategoryId(e.target.value)}
-                className="bg-gray-100 text-gray-900 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-              >
-                {categories.length === 0 && (
-                  <option value="">（先にカテゴリを作成してください）</option>
-                )}
-                {categories.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.name}
-                  </option>
-                ))}
-              </select>
-            </div>
-
             {/* ドロップゾーン */}
             <div
               onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
@@ -343,7 +393,7 @@ export default function AdminPage() {
 
             <button
               type="submit"
-              disabled={uploading || pendingCount === 0 || !selectedCategoryId}
+              disabled={uploading || pendingCount === 0}
               className="bg-blue-600 hover:bg-blue-500 disabled:opacity-50 py-2 rounded-lg font-semibold transition-colors"
             >
               {uploading

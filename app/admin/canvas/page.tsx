@@ -36,7 +36,7 @@ export default function CanvasEditorPage() {
   const router = useRouter();
 
   const [categories, setCategories] = useState<Category[]>([]);
-  const [selectedCategory, setSelectedCategory] = useState<string>("default");
+  const [selectedCategory, setSelectedCategory] = useState<string>("");
   const [items, setItems] = useState<CanvasItem[]>([]);
   const [photos, setPhotos] = useState<Photo[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -55,11 +55,14 @@ export default function CanvasEditorPage() {
   useEffect(() => {
     if (!user) return;
     getPhotos().then(setPhotos);
-    getCategories().then(setCategories);
+    getCategories().then((cats) => {
+      setCategories(cats);
+      if (cats.length > 0) setSelectedCategory((prev) => prev || cats[0].id);
+    });
   }, [user]);
 
   useEffect(() => {
-    if (!user) return;
+    if (!user || !selectedCategory) return;
     setSelectedId(null);
     setEditingTextId(null);
     getCanvasLayout(selectedCategory).then((data) =>
@@ -167,6 +170,7 @@ export default function CanvasEditorPage() {
 
   // ── save ───────────────────────────────────────────────────────────────────
   async function handleSave() {
+    if (!selectedCategory) return;
     setSaving(true);
     setSaveMsg("");
     try {
@@ -235,7 +239,7 @@ export default function CanvasEditorPage() {
           onChange={(e) => setSelectedCategory(e.target.value)}
           className="ml-3 bg-gray-100 text-gray-800 text-sm rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-blue-500"
         >
-          <option value="default">All (デフォルト)</option>
+          {categories.length === 0 && <option value="">（カテゴリ未作成）</option>}
           {categories.map((c) => (
             <option key={c.id} value={c.id}>{c.name}</option>
           ))}
