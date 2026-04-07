@@ -1,9 +1,10 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { TransformWrapper, TransformComponent } from "react-zoom-pan-pinch";
-import { getCanvasLayout, getCategories } from "@/lib/firestore";
+import { getCategories } from "@/lib/firestore";
 import { CanvasItem, Category } from "@/lib/types";
+import { fetchCanvasLayoutCached } from "@/lib/canvasCache";
 
 const CANVAS_W = 3000;
 const CANVAS_H = 2000;
@@ -13,6 +14,14 @@ export default function HomePage() {
   const [selectedCategory, setSelectedCategory] = useState<string>("");
   const [items, setItems] = useState<CanvasItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [initialScale, setInitialScale] = useState<number | null>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!containerRef.current) return;
+    const { clientWidth, clientHeight } = containerRef.current;
+    setInitialScale(Math.min(clientWidth / CANVAS_W, clientHeight / CANVAS_H));
+  }, []);
 
   useEffect(() => {
     getCategories().then((cats) => {
@@ -24,11 +33,7 @@ export default function HomePage() {
 
   useEffect(() => {
     if (!selectedCategory) return;
-    setLoading(true);
-    getCanvasLayout(selectedCategory).then((data) => {
-      setItems(data);
-      setLoading(false);
-    });
+    fetchCanvasLayoutCached(selectedCategory, setItems, setLoading);
   }, [selectedCategory]);
 
   return (
@@ -61,15 +66,15 @@ export default function HomePage() {
         )}
 
         {/* キャンバス表示 */}
-        <div className="flex-1 min-w-0 overflow-hidden">
+        <div ref={containerRef} className="flex-1 min-w-0 overflow-hidden">
           {loading ? (
             <div className="flex justify-center py-20 text-gray-400">Loading…</div>
           ) : (
             <TransformWrapper
-              key={selectedCategory}
-              minScale={0.1}
+              key={selectedCategory + (initialScale ?? 0)}
+              minScale={0.05}
               maxScale={4}
-              initialScale={0.3}
+              initialScale={initialScale ?? 0.3}
               wheel={{ step: 0.05 }}
               panning={{ velocityDisabled: false }}
             >

@@ -9,7 +9,8 @@ import {
 } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
-import { getPhotos, getCanvasLayout, saveCanvasLayout, getCategories, deletePhoto } from "@/lib/firestore";
+import { getPhotos, saveCanvasLayout, getCategories, deletePhoto } from "@/lib/firestore";
+import { fetchCanvasLayoutCached, invalidateCache } from "@/lib/canvasCache";
 import { ref as storageRef, deleteObject } from "firebase/storage";
 import { storage } from "@/lib/firebase";
 import { Photo, CanvasItem, Category } from "@/lib/types";
@@ -69,8 +70,10 @@ export default function CanvasEditorPage() {
     if (!user || !selectedCategory) return;
     setSelectedId(null);
     setEditingTextId(null);
-    getCanvasLayout(selectedCategory).then((data) =>
-      setItems(data.map((item) => ({ ...item, zIndex: Math.max(1, item.zIndex) })))
+    fetchCanvasLayoutCached(
+      selectedCategory,
+      (data) => setItems(data.map((item) => ({ ...item, zIndex: Math.max(1, item.zIndex) }))),
+      () => {},
     );
   }, [user, selectedCategory]);
 
@@ -211,6 +214,7 @@ export default function CanvasEditorPage() {
     setSaveMsg("");
     try {
       await saveCanvasLayout(items, selectedCategory);
+      invalidateCache(selectedCategory);
       setSaveMsg("保存しました");
     } catch {
       setSaveMsg("保存に失敗しました");
@@ -374,7 +378,7 @@ export default function CanvasEditorPage() {
                 boxShadow: "0 4px 24px rgba(0,0,0,0.18)",
                 overflow: "hidden",
               }}
-              onClick={(e) => e.stopPropagation()}
+              onClick={(e) => { e.stopPropagation(); setEditingTextId(null); }}
             >
               {/* inner canvas at natural size, scaled */}
               <div

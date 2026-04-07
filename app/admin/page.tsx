@@ -9,7 +9,7 @@ import { auth, storage } from "@/lib/firebase";
 import { getCategories, addCategory, addPhoto, updateCategory, deleteCategory } from "@/lib/firestore";
 import { Category } from "@/lib/types";
 
-const MAX_WIDTH = 3000;
+const MAX_WIDTH = 2000;
 const MAX_HEIGHT = 2000;
 
 type FileEntry = {
