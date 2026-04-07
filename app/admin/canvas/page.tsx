@@ -9,7 +9,9 @@ import {
 } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
-import { getPhotos, getCanvasLayout, saveCanvasLayout, getCategories } from "@/lib/firestore";
+import { getPhotos, getCanvasLayout, saveCanvasLayout, getCategories, deletePhoto } from "@/lib/firestore";
+import { ref as storageRef, deleteObject } from "firebase/storage";
+import { storage } from "@/lib/firebase";
 import { Photo, CanvasItem, Category } from "@/lib/types";
 
 const CANVAS_W = 3000;
@@ -44,9 +46,11 @@ export default function CanvasEditorPage() {
   const [saving, setSaving] = useState(false);
   const [saveMsg, setSaveMsg] = useState("");
   const [editingTextId, setEditingTextId] = useState<string | null>(null);
+  const [sidebarWidth, setSidebarWidth] = useState(192);
 
   const canvasRef = useRef<HTMLDivElement>(null);
   const dragRef = useRef<DragState | null>(null);
+  const sidebarResizing = useRef(false);
 
   useEffect(() => {
     if (!loading && !user) router.replace("/admin/login");
@@ -103,16 +107,33 @@ export default function CanvasEditorPage() {
 
   const handleWindowMouseUp = useCallback(() => {
     dragRef.current = null;
+    sidebarResizing.current = false;
+    document.body.style.cursor = "";
+    document.body.style.userSelect = "";
   }, []);
 
   useEffect(() => {
-    window.addEventListener("mousemove", handleWindowMouseMove);
+    function onMouseMove(e: MouseEvent) {
+      if (sidebarResizing.current) {
+        setSidebarWidth(Math.max(120, Math.min(480, e.clientX)));
+        return;
+      }
+      handleWindowMouseMove(e);
+    }
+    window.addEventListener("mousemove", onMouseMove);
     window.addEventListener("mouseup", handleWindowMouseUp);
     return () => {
-      window.removeEventListener("mousemove", handleWindowMouseMove);
+      window.removeEventListener("mousemove", onMouseMove);
       window.removeEventListener("mouseup", handleWindowMouseUp);
     };
   }, [handleWindowMouseMove, handleWindowMouseUp]);
+
+  function onSidebarResizeStart(e: React.MouseEvent) {
+    e.preventDefault();
+    sidebarResizing.current = true;
+    document.body.style.cursor = "col-resize";
+    document.body.style.userSelect = "none";
+  }
 
   // ── keyboard delete ────────────────────────────────────────────────────────
   useEffect(() => {
@@ -145,6 +166,21 @@ export default function CanvasEditorPage() {
     };
     setItems((prev) => [...prev, newItem]);
     setSelectedId(newItem.id);
+  }
+
+  // ── delete photo ──────────────────────────────────────────────────────────
+  async function handleDeletePhoto(photo: Photo) {
+    if (!confirm(`「${photo.url.split("/").pop()?.split("?")[0]}」を削除しますか？`)) return;
+    // Storage から削除
+    try {
+      const url = new URL(photo.url);
+      const pathPart = decodeURIComponent(url.pathname.split("/o/")[1]);
+      await deleteObject(storageRef(storage, pathPart));
+    } catch {
+      // Storage削除失敗は無視してFirestoreは削除する
+    }
+    await deletePhoto(photo.id);
+    setPhotos((prev) => prev.filter((p) => p.id !== photo.id));
   }
 
   // ── add text ───────────────────────────────────────────────────────────────
@@ -281,24 +317,44 @@ export default function CanvasEditorPage() {
 
       <div className="flex flex-1 min-h-0">
         {/* ── left sidebar: photos ── */}
-        <aside className="shrink-0 w-36 bg-white border-r border-gray-200 overflow-y-auto flex flex-col gap-1 p-2">
-          <p className="text-xs text-gray-400 px-1 mb-1">写真を追加</p>
+        <aside
+          className="shrink-0 bg-white overflow-y-auto p-2 relative"
+          style={{ width: sidebarWidth }}
+        >
+          {/* リサイズハンドル */}
+          <div
+            onMouseDown={onSidebarResizeStart}
+            className="absolute top-0 right-0 w-1 h-full cursor-col-resize hover:bg-blue-400 transition-colors z-10"
+          />
+          <p className="text-xs text-gray-400 px-1 mb-2">写真を追加</p>
+          <div className="grid grid-cols-2 gap-1">
           {photos.map((photo) => (
-            <button
-              key={photo.id}
-              onClick={() => addPhoto(photo)}
-              className="rounded overflow-hidden hover:ring-2 hover:ring-blue-400 transition-all"
-              title="クリックでキャンバスに追加"
-            >
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src={photo.url}
-                alt=""
-                className="w-full aspect-square object-cover"
-                draggable={false}
-              />
-            </button>
+            <div key={photo.id} className="relative group rounded overflow-hidden">
+              <button
+                onClick={() => addPhoto(photo)}
+                className="w-full hover:ring-2 hover:ring-blue-400 transition-all"
+                title="クリックでキャンバスに追加"
+              >
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={photo.url}
+                  alt=""
+                  className="w-full aspect-square object-cover"
+                  draggable={false}
+                />
+              </button>
+              <button
+                onClick={() => handleDeletePhoto(photo)}
+                className="absolute top-1 right-1 bg-black/60 hover:bg-red-600 rounded-full w-5 h-5 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                title="削除"
+              >
+                <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
           ))}
+          </div>
         </aside>
 
         {/* ── canvas area ── */}

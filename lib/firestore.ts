@@ -61,6 +61,10 @@ export async function addPhoto(photo: Omit<Photo, "id" | "createdAt">): Promise<
   return ref.id;
 }
 
+export async function deletePhoto(id: string): Promise<void> {
+  await deleteDoc(doc(db, "photos", id));
+}
+
 export async function getCanvasLayout(categoryId = "default"): Promise<CanvasItem[]> {
   const snap = await getDoc(doc(db, "canvas", categoryId));
   if (!snap.exists()) return [];
