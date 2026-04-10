@@ -44,7 +44,7 @@ export default function HomePage() {
       <div className="relative flex-1 min-h-0">
         {/* カテゴリサイドバー */}
         {categories.length > 0 && (
-          <nav className="absolute top-0 left-0 h-full w-56 px-4 py-4 flex flex-col gap-1 overflow-y-auto z-10 backdrop-blur-sm pt-16" style={{ backgroundColor: `rgba(255,255,255,${NAV_OPACITY})` }}>
+          <nav className="absolute top-0 left-0 h-full w-72 px-4 py-4 flex flex-col gap-1 overflow-y-auto z-10 backdrop-blur-sm pt-16" style={{ backgroundColor: `rgba(255,255,255,${NAV_OPACITY})` }}>
             {(() => {
               const ITEM_H = 40;     // minHeight 2.5rem = 40px
               const GAP = 24;        // 文字間隔
