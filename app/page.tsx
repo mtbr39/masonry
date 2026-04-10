@@ -8,6 +8,9 @@ import { fetchCanvasLayoutCached } from "@/lib/canvasCache";
 
 const CANVAS_W = 3000;
 const CANVAS_H = 2000;
+const NAV_OPACITY = 0.8;           // メニュー背景の不透明度 (0〜1)
+const NAV_ACTIVE_TEXT_SIZE = "text-4xl"; // 選択中メニューの文字サイズ
+const NAV_LINE_WIDTH = "w-0.5";    // メニュー縦線の太さ
 
 export default function HomePage() {
   const [categories, setCategories] = useState<Category[]>([]);
@@ -38,35 +41,59 @@ export default function HomePage() {
 
   return (
     <div className="h-screen bg-white text-gray-900 flex flex-col overflow-hidden">
-      <header className="shrink-0 px-6 py-4 flex items-center justify-between border-b border-gray-100 bg-white z-10">
-        <h1 className="text-2xl font-bold tracking-tight">Photo Portfolio</h1>
-        <a href="/admin" className="text-sm text-gray-400 hover:text-gray-900 transition-colors">
-          Admin
-        </a>
-      </header>
-
-      <div className="flex flex-1 min-h-0">
+      <div className="relative flex-1 min-h-0">
         {/* カテゴリサイドバー */}
         {categories.length > 0 && (
-          <nav className="shrink-0 w-32 px-6 py-4 flex flex-col gap-1 overflow-y-auto border-r border-gray-100 bg-white z-10">
-            {categories.map((c) => (
-              <button
-                key={c.id}
-                onClick={() => setSelectedCategory(c.id)}
-                className={`text-left text-sm py-1 transition-colors ${
-                  selectedCategory === c.id
-                    ? "text-gray-900 font-semibold"
-                    : "text-gray-400 hover:text-gray-900"
-                }`}
-              >
-                {c.name}
-              </button>
-            ))}
+          <nav className="absolute top-0 left-0 h-full w-56 px-4 py-4 flex flex-col gap-1 overflow-y-auto z-10 backdrop-blur-sm pt-16" style={{ backgroundColor: `rgba(255,255,255,${NAV_OPACITY})` }}>
+            {(() => {
+              const ITEM_H = 40;     // minHeight 2.5rem = 40px
+              const GAP = 24;        // 文字間隔
+              const TEXT_INSET = 0; // ボタン内でテキストが中央寄せされる分のオフセット
+              const activeIdx = categories.findIndex((c) => c.id === selectedCategory);
+              // 上の線：一番上の文字の下端 → activeの文字上端
+              const topLineTop = ITEM_H - TEXT_INSET;
+              const topLineBottom = activeIdx * (ITEM_H + GAP) + TEXT_INSET;
+              // 下の線：activeの文字下端 → 一番下の文字の上端
+              const bottomLineTop = activeIdx * (ITEM_H + GAP) + ITEM_H - TEXT_INSET;
+              const bottomLineBottom = (categories.length - 1) * (ITEM_H + GAP) + TEXT_INSET;
+              return (
+                <div className="relative flex flex-col" style={{ gap: GAP }}>
+                  {/* アクティブより上の縦線 */}
+                  {activeIdx > 0 && topLineBottom > topLineTop && (
+                    <div
+                      className={`absolute left-1/2 -translate-x-1/2 ${NAV_LINE_WIDTH} bg-gray-300 pointer-events-none`}
+                      style={{ top: topLineTop, height: topLineBottom - topLineTop }}
+                    />
+                  )}
+                  {/* アクティブより下の縦線 */}
+                  {activeIdx < categories.length - 1 && bottomLineBottom > bottomLineTop && (
+                    <div
+                      className={`absolute left-1/2 -translate-x-1/2 ${NAV_LINE_WIDTH} bg-gray-300 pointer-events-none`}
+                      style={{ top: bottomLineTop, height: bottomLineBottom - bottomLineTop }}
+                    />
+                  )}
+                  {categories.map((c) => (
+                    <button
+                      key={c.id}
+                      onClick={() => setSelectedCategory(c.id)}
+                      className={`relative text-center py-1 transition-all ${
+                        selectedCategory === c.id
+                          ? `text-gray-900 font-semibold ${NAV_ACTIVE_TEXT_SIZE}`
+                          : "text-gray-400 hover:text-gray-900 text-lg"
+                      }`}
+                      style={{ minHeight: ITEM_H, display: "flex", alignItems: "center", justifyContent: "center" }}
+                    >
+                      <span className="relative">{c.name}</span>
+                    </button>
+                  ))}
+                </div>
+              );
+            })()}
           </nav>
         )}
 
         {/* キャンバス表示 */}
-        <div ref={containerRef} className="flex-1 min-w-0 overflow-hidden">
+        <div ref={containerRef} className="absolute inset-0 overflow-hidden">
           {loading ? (
             <div className="flex justify-center py-20 text-gray-400">Loading…</div>
           ) : (
