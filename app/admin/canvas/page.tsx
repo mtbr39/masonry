@@ -199,7 +199,7 @@ export default function CanvasEditorPage() {
       zIndex: maxZ + 1,
       content: "テキストを入力",
       fontSize: 60,
-      color: "#111111",
+      color: "#161616",
       fontWeight: "normal",
     };
     setItems((prev) => [...prev, newItem]);
@@ -270,7 +270,7 @@ export default function CanvasEditorPage() {
     <div className="h-screen bg-gray-100 flex flex-col overflow-hidden select-none">
       {/* ── toolbar ── */}
       <header className="shrink-0 px-4 py-2 bg-white border-b border-gray-200 flex items-center gap-3">
-        <a href="/admin" className="text-sm text-gray-500 hover:text-gray-900 transition-colors mr-2">
+        <a href="/admin" className="text-sm text-gray-500 hover:text-foreground transition-colors mr-2">
           ← Admin
         </a>
         <span className="text-sm font-semibold text-gray-700">Canvas Editor</span>
@@ -441,7 +441,7 @@ export default function CanvasEditorPage() {
                                 width: "100%",
                                 height: "100%",
                                 fontSize: item.fontSize ?? 40,
-                                color: item.color ?? "#111111",
+                                color: item.color ?? "var(--foreground)",
                                 fontWeight: item.fontWeight ?? "normal",
                                 background: "transparent",
                                 border: "none",
@@ -458,7 +458,7 @@ export default function CanvasEditorPage() {
                                 width: "100%",
                                 height: "100%",
                                 fontSize: item.fontSize ?? 40,
-                                color: item.color ?? "#111111",
+                                color: item.color ?? "var(--foreground)",
                                 fontWeight: item.fontWeight ?? "normal",
                                 whiteSpace: "pre-wrap",
                                 wordBreak: "break-word",
@@ -525,7 +525,7 @@ export default function CanvasEditorPage() {
                     type="number"
                     value={Math.round(selected[key] as number)}
                     onChange={(e) => updateSelected({ [key]: Number(e.target.value) })}
-                    className="w-full bg-gray-100 text-gray-900 rounded px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-blue-500"
+                    className="w-full bg-gray-100 text-foreground rounded px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-blue-500"
                   />
                 </label>
               ))}
@@ -539,7 +539,7 @@ export default function CanvasEditorPage() {
                 value={selected.zIndex}
                 min={1}
                 onChange={(e) => updateSelected({ zIndex: Math.max(1, Number(e.target.value)) })}
-                className="w-full bg-gray-100 text-gray-900 rounded px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-blue-500"
+                className="w-full bg-gray-100 text-foreground rounded px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-blue-500"
               />
             </label>
 
@@ -552,14 +552,14 @@ export default function CanvasEditorPage() {
                     type="number"
                     value={selected.fontSize ?? 40}
                     onChange={(e) => updateSelected({ fontSize: Number(e.target.value) })}
-                    className="w-full bg-gray-100 text-gray-900 rounded px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-blue-500"
+                    className="w-full bg-gray-100 text-foreground rounded px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-blue-500"
                   />
                 </label>
                 <label className="flex flex-col gap-0.5">
                   <span className="text-xs text-gray-400">色</span>
                   <input
                     type="color"
-                    value={selected.color ?? "#111111"}
+                    value={selected.color ?? "#161616"}
                     onChange={(e) => updateSelected({ color: e.target.value })}
                     className="w-full h-8 rounded cursor-pointer"
                   />
@@ -569,7 +569,7 @@ export default function CanvasEditorPage() {
                   <select
                     value={selected.fontWeight ?? "normal"}
                     onChange={(e) => updateSelected({ fontWeight: e.target.value })}
-                    className="w-full bg-gray-100 text-gray-900 rounded px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-blue-500"
+                    className="w-full bg-gray-100 text-foreground rounded px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-blue-500"
                   >
                     <option value="normal">Normal</option>
                     <option value="bold">Bold</option>

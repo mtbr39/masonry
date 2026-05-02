@@ -190,11 +190,11 @@ export default function AdminPage() {
   if (loading || !user) return null;
 
   return (
-    <main className="min-h-screen bg-white text-gray-900">
+    <main className="min-h-screen bg-white text-foreground">
       <header className="px-6 py-6 flex items-center justify-between border-b border-gray-200">
         <h1 className="text-xl font-bold">Admin</h1>
         <div className="flex items-center gap-4">
-          <a href="/" className="text-sm text-gray-500 hover:text-gray-900 transition-colors">
+          <a href="/" className="text-sm text-gray-500 hover:text-foreground transition-colors">
             ← Public site
           </a>
           <button
@@ -229,7 +229,7 @@ export default function AdminPage() {
               value={newCategoryName}
               onChange={(e) => setNewCategoryName(e.target.value)}
               placeholder="カテゴリ名"
-              className="flex-1 bg-gray-100 text-gray-900 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="flex-1 bg-gray-100 text-foreground rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
             <button
               type="submit"
@@ -256,7 +256,7 @@ export default function AdminPage() {
                           if (e.key === "Escape") setEditingCategoryId(null);
                         }}
                         autoFocus
-                        className="flex-1 bg-white text-gray-900 rounded px-2 py-1 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        className="flex-1 bg-white text-foreground rounded px-2 py-1 focus:outline-none focus:ring-2 focus:ring-blue-500"
                       />
                       <button
                         type="button"

@@ -9,7 +9,7 @@ import { fetchCanvasLayoutCached } from "@/lib/canvasCache";
 const CANVAS_W = 3000;
 const CANVAS_H = 2000;
 const NAV_OPACITY = 0.8;           // メニュー背景の不透明度 (0〜1)
-const NAV_ACTIVE_TEXT_SIZE = "text-4xl"; // 選択中メニューの文字サイズ
+const NAV_ACTIVE_TEXT_SIZE = "text-[1.6875rem]"; // 選択中メニューの文字サイズ (text-lg の 1.5倍)
 const NAV_LINE_WIDTH = "w-0.5";    // メニュー縦線の太さ
 
 export default function HomePage() {
@@ -40,7 +40,7 @@ export default function HomePage() {
   }, [selectedCategory]);
 
   return (
-    <div className="h-screen bg-white text-gray-900 flex flex-col overflow-hidden">
+    <div className="h-screen bg-white text-foreground flex flex-col overflow-hidden">
       <div className="relative flex-1 min-h-0">
         {/* カテゴリサイドバー */}
         {categories.length > 0 && (
@@ -78,8 +78,8 @@ export default function HomePage() {
                       onClick={() => setSelectedCategory(c.id)}
                       className={`relative text-center py-1 transition-all ${
                         selectedCategory === c.id
-                          ? `text-gray-900 font-semibold ${NAV_ACTIVE_TEXT_SIZE}`
-                          : "text-gray-400 hover:text-gray-900 text-lg"
+                          ? `text-foreground font-semibold ${NAV_ACTIVE_TEXT_SIZE}`
+                          : "text-gray-400 hover:text-foreground text-lg"
                       }`}
                       style={{ minHeight: ITEM_H, display: "flex", alignItems: "center", justifyContent: "center" }}
                     >
@@ -140,7 +140,7 @@ export default function HomePage() {
                             width: "100%",
                             height: "100%",
                             fontSize: item.fontSize ?? 40,
-                            color: item.color ?? "#111111",
+                            color: item.color ?? "var(--foreground)",
                             fontWeight: item.fontWeight ?? "normal",
                             whiteSpace: "pre-wrap",
                             wordBreak: "break-word",
