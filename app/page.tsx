@@ -78,7 +78,7 @@ export default function HomePage() {
                       onClick={() => setSelectedCategory(c.id)}
                       className={`relative text-center py-1 transition-all ${
                         selectedCategory === c.id
-                          ? `text-foreground font-semibold ${NAV_ACTIVE_TEXT_SIZE}`
+                          ? `text-foreground font-light ${NAV_ACTIVE_TEXT_SIZE}`
                           : "text-gray-400 hover:text-foreground text-lg"
                       }`}
                       style={{ minHeight: ITEM_H, display: "flex", alignItems: "center", justifyContent: "center" }}
