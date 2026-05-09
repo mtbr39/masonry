@@ -35,6 +35,27 @@ export function preloadImages(items: CanvasItem[]) {
   }
 }
 
+/**
+ * バックグラウンドでカテゴリのレイアウトと画像を温める。
+ * メモリヒットなら何もしない。localStorage ヒットならメモリ昇格＋画像プリロードのみ。
+ * いずれの場合も最終的に Firestore から最新を取得してキャッシュを更新する。
+ */
+export function prefetchCanvasLayout(categoryId: string) {
+  if (memoryCache.has(categoryId)) return;
+
+  const stored = loadFromStorage(categoryId);
+  if (stored) {
+    memoryCache.set(categoryId, stored);
+    preloadImages(stored);
+  }
+
+  getCanvasLayout(categoryId).then((data) => {
+    memoryCache.set(categoryId, data);
+    saveToStorage(categoryId, data);
+    preloadImages(data);
+  });
+}
+
 /** キャッシュを無効化（Admin保存後などに呼ぶ） */
 export function invalidateCache(categoryId: string) {
   memoryCache.delete(categoryId);
@@ -72,10 +93,14 @@ export function fetchCanvasLayoutCached(
   }
 
   getCanvasLayout(categoryId).then((data) => {
+    const prev = memoryCache.get(categoryId);
     memoryCache.set(categoryId, data);
     saveToStorage(categoryId, data);
     preloadImages(data);
-    onData(data);
+    // 取得結果がキャッシュと同一なら不要な再レンダーを避ける
+    if (!prev || JSON.stringify(prev) !== JSON.stringify(data)) {
+      onData(data);
+    }
     onLoadingChange(false);
   });
 }

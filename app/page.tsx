@@ -1,10 +1,10 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { TransformWrapper, TransformComponent } from "react-zoom-pan-pinch";
+import { TransformWrapper, TransformComponent, type ReactZoomPanPinchRef } from "react-zoom-pan-pinch";
 import { getCategories } from "@/lib/firestore";
 import { CanvasItem, Category } from "@/lib/types";
-import { fetchCanvasLayoutCached } from "@/lib/canvasCache";
+import { fetchCanvasLayoutCached, prefetchCanvasLayout } from "@/lib/canvasCache";
 
 const CANVAS_W = 3000;
 const CANVAS_H = 2000;
@@ -19,6 +19,7 @@ export default function HomePage() {
   const [loading, setLoading] = useState(true);
   const [initialScale, setInitialScale] = useState<number | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+  const transformRef = useRef<ReactZoomPanPinchRef | null>(null);
 
   useEffect(() => {
     if (!containerRef.current) return;
@@ -37,7 +38,21 @@ export default function HomePage() {
   useEffect(() => {
     if (!selectedCategory) return;
     fetchCanvasLayoutCached(selectedCategory, setItems, setLoading);
-  }, [selectedCategory]);
+    // 初期表示位置／ズームに戻す（key でアンマウントしない代わりに ref で戻す）
+    if (transformRef.current && initialScale != null) {
+      transformRef.current.setTransform(0, 0, initialScale, 0);
+    }
+  }, [selectedCategory, initialScale]);
+
+  // 選択中以外のカテゴリをバックグラウンドで温める。切替時の表示遅延を消す狙い。
+  useEffect(() => {
+    if (categories.length === 0 || !selectedCategory) return;
+    const others = categories.filter((c) => c.id !== selectedCategory);
+    const run = () => others.forEach((c) => prefetchCanvasLayout(c.id));
+    const ric = (window as Window & { requestIdleCallback?: (cb: () => void) => number }).requestIdleCallback;
+    if (ric) ric(run);
+    else setTimeout(run, 0);
+  }, [categories, selectedCategory]);
 
   return (
     <div className="h-screen bg-white text-foreground flex flex-col overflow-hidden">
@@ -98,7 +113,7 @@ export default function HomePage() {
             <div className="flex justify-center py-20 text-gray-400">Loading…</div>
           ) : (
             <TransformWrapper
-              key={selectedCategory + (initialScale ?? 0)}
+              ref={transformRef}
               minScale={0.05}
               maxScale={4}
               initialScale={initialScale ?? 0.3}
@@ -133,6 +148,9 @@ export default function HomePage() {
                           alt=""
                           style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
                           draggable={false}
+                          loading="eager"
+                          decoding="async"
+                          fetchPriority="high"
                         />
                       ) : item.type === "text" ? (
                         <div
