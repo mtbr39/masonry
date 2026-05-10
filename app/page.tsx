@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { TransformWrapper, TransformComponent, type ReactZoomPanPinchContentRef } from "react-zoom-pan-pinch";
 import { getCategories } from "@/lib/firestore";
 import { CanvasItem, Category } from "@/lib/types";
@@ -11,6 +11,7 @@ const CANVAS_H = 2000;
 const NAV_OPACITY = 0.8;           // メニュー背景の不透明度 (0〜1)
 const NAV_ACTIVE_TEXT_SIZE = "text-[1.6875rem]"; // 選択中メニューの文字サイズ (text-lg の 1.5倍)
 const NAV_LINE_WIDTH = "w-0.5";    // メニュー縦線の太さ
+const NAV_LINE_TEXT_GAP = -2;       // 線とテキストの間の余白(px)。0 でテキスト端ぴったりまで
 
 export default function HomePage() {
   const [categories, setCategories] = useState<Category[]>([]);
@@ -19,6 +20,9 @@ export default function HomePage() {
   const [initialScale, setInitialScale] = useState<number | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const transformRefs = useRef(new Map<string, ReactZoomPanPinchContentRef>());
+  const navListRef = useRef<HTMLDivElement>(null);
+  const textRefs = useRef(new Map<string, HTMLSpanElement>());
+  const [lineRange, setLineRange] = useState<{ top: number; bottom: number; activeTop: number; activeBottom: number } | null>(null);
 
   useEffect(() => {
     if (!containerRef.current) return;
@@ -68,6 +72,51 @@ export default function HomePage() {
     };
   }, [selectedCategory, initialScale]);
 
+  const computeLineRange = useCallback(() => {
+    if (categories.length < 2 || !selectedCategory) {
+      setLineRange(null);
+      return;
+    }
+    const list = navListRef.current;
+    if (!list) return;
+    const firstEl = textRefs.current.get(categories[0].id);
+    const lastEl = textRefs.current.get(categories[categories.length - 1].id);
+    const activeEl = textRefs.current.get(selectedCategory);
+    if (!firstEl || !lastEl || !activeEl) return;
+    const base = list.getBoundingClientRect().top;
+    setLineRange({
+      top: firstEl.getBoundingClientRect().bottom - base,
+      bottom: lastEl.getBoundingClientRect().top - base,
+      activeTop: activeEl.getBoundingClientRect().top - base,
+      activeBottom: activeEl.getBoundingClientRect().bottom - base,
+    });
+  }, [categories, selectedCategory]);
+
+  // テキスト span の登録。ref callback は安定化させて毎レンダーで剥がれないようにする。
+  const registerTextRef = useCallback((id: string) => (el: HTMLSpanElement | null) => {
+    if (el) textRefs.current.set(id, el);
+    else textRefs.current.delete(id);
+  }, []);
+
+  // 縦線の位置をテキスト実寸から算出。フォント／レイアウト確定後に再計測。
+  useLayoutEffect(() => {
+    computeLineRange();
+    // 1フレーム後にも測り直す（フォント／active切替時のサイズ変化を確実に拾う）
+    const raf = requestAnimationFrame(computeLineRange);
+    const ro = new ResizeObserver(computeLineRange);
+    if (navListRef.current) ro.observe(navListRef.current);
+    textRefs.current.forEach((el) => ro.observe(el));
+    window.addEventListener("resize", computeLineRange);
+    if (typeof document !== "undefined" && "fonts" in document) {
+      document.fonts.ready.then(computeLineRange).catch(() => {});
+    }
+    return () => {
+      cancelAnimationFrame(raf);
+      ro.disconnect();
+      window.removeEventListener("resize", computeLineRange);
+    };
+  }, [computeLineRange]);
+
   const selectedReady = !!selectedCategory && !!layouts[selectedCategory];
 
   return (
@@ -76,50 +125,45 @@ export default function HomePage() {
         {/* カテゴリサイドバー */}
         {categories.length > 0 && (
           <nav className="absolute top-0 left-0 h-full w-72 px-4 py-4 flex flex-col gap-1 overflow-y-auto z-10 backdrop-blur-sm pt-16" style={{ backgroundColor: `rgba(255,255,255,${NAV_OPACITY})` }}>
-            {(() => {
-              const ITEM_H = 40;     // minHeight 2.5rem = 40px
-              const GAP = 24;        // 文字間隔
-              const TEXT_INSET = 0; // ボタン内でテキストが中央寄せされる分のオフセット
-              const activeIdx = categories.findIndex((c) => c.id === selectedCategory);
-              // 上の線：一番上の文字の下端 → activeの文字上端
-              const topLineTop = ITEM_H - TEXT_INSET;
-              const topLineBottom = activeIdx * (ITEM_H + GAP) + TEXT_INSET;
-              // 下の線：activeの文字下端 → 一番下の文字の上端
-              const bottomLineTop = activeIdx * (ITEM_H + GAP) + ITEM_H - TEXT_INSET;
-              const bottomLineBottom = (categories.length - 1) * (ITEM_H + GAP) + TEXT_INSET;
-              return (
-                <div className="relative flex flex-col" style={{ gap: GAP }}>
-                  {/* アクティブより上の縦線 */}
-                  {activeIdx > 0 && topLineBottom > topLineTop && (
-                    <div
-                      className={`absolute left-1/2 -translate-x-1/2 ${NAV_LINE_WIDTH} bg-gray-300 pointer-events-none`}
-                      style={{ top: topLineTop, height: topLineBottom - topLineTop }}
-                    />
-                  )}
-                  {/* アクティブより下の縦線 */}
-                  {activeIdx < categories.length - 1 && bottomLineBottom > bottomLineTop && (
-                    <div
-                      className={`absolute left-1/2 -translate-x-1/2 ${NAV_LINE_WIDTH} bg-gray-300 pointer-events-none`}
-                      style={{ top: bottomLineTop, height: bottomLineBottom - bottomLineTop }}
-                    />
-                  )}
-                  {categories.map((c) => (
-                    <button
-                      key={c.id}
-                      onClick={() => setSelectedCategory(c.id)}
-                      className={`relative text-center py-1 transition-all ${
-                        selectedCategory === c.id
-                          ? `text-foreground font-light ${NAV_ACTIVE_TEXT_SIZE}`
-                          : "text-gray-400 hover:text-foreground text-lg"
-                      }`}
-                      style={{ minHeight: ITEM_H, display: "flex", alignItems: "center", justifyContent: "center" }}
-                    >
-                      <span className="relative">{c.name}</span>
-                    </button>
-                  ))}
-                </div>
-              );
-            })()}
+            <div ref={navListRef} className="relative flex flex-col" style={{ gap: 24 }}>
+              {lineRange && lineRange.activeTop - NAV_LINE_TEXT_GAP > lineRange.top + NAV_LINE_TEXT_GAP && (
+                <div
+                  className={`absolute left-1/2 -translate-x-1/2 ${NAV_LINE_WIDTH} bg-gray-300 pointer-events-none`}
+                  style={{
+                    top: lineRange.top + NAV_LINE_TEXT_GAP,
+                    height: lineRange.activeTop - lineRange.top - NAV_LINE_TEXT_GAP * 2,
+                  }}
+                />
+              )}
+              {lineRange && lineRange.bottom - NAV_LINE_TEXT_GAP > lineRange.activeBottom + NAV_LINE_TEXT_GAP && (
+                <div
+                  className={`absolute left-1/2 -translate-x-1/2 ${NAV_LINE_WIDTH} bg-gray-300 pointer-events-none`}
+                  style={{
+                    top: lineRange.activeBottom + NAV_LINE_TEXT_GAP,
+                    height: lineRange.bottom - lineRange.activeBottom - NAV_LINE_TEXT_GAP * 2,
+                  }}
+                />
+              )}
+              {categories.map((c) => (
+                <button
+                  key={c.id}
+                  onClick={() => setSelectedCategory(c.id)}
+                  className={`relative text-center py-1 transition-all ${
+                    selectedCategory === c.id
+                      ? `text-foreground font-light ${NAV_ACTIVE_TEXT_SIZE}`
+                      : "text-gray-400 hover:text-foreground text-lg"
+                  }`}
+                  style={{ display: "flex", alignItems: "center", justifyContent: "center" }}
+                >
+                  <span
+                    ref={registerTextRef(c.id)}
+                    className="relative"
+                  >
+                    {c.name}
+                  </span>
+                </button>
+              ))}
+            </div>
           </nav>
         )}
 
