@@ -6,7 +6,7 @@ import { signOut } from "firebase/auth";
 import { ref, uploadBytesResumable, getDownloadURL } from "firebase/storage";
 import { useAuth } from "@/context/AuthContext";
 import { auth, storage } from "@/lib/firebase";
-import { getCategories, addCategory, addPhoto, updateCategory, deleteCategory } from "@/lib/firestore";
+import { getCategories, addCategory, addPhoto, updateCategory, deleteCategory, updateCategoryOrders } from "@/lib/firestore";
 import { Category } from "@/lib/types";
 
 const MAX_WIDTH = 2000;
@@ -109,9 +109,25 @@ export default function AdminPage() {
   async function handleAddCategory(e: React.SyntheticEvent<HTMLFormElement>) {
     e.preventDefault();
     if (!newCategoryName.trim()) return;
-    const id = await addCategory(newCategoryName.trim());
-    setCategories((prev) => [...prev, { id, name: newCategoryName.trim() }]);
+    const order = categories.length > 0 ? Math.max(...categories.map((c) => c.order)) + 1 : 0;
+    const id = await addCategory(newCategoryName.trim(), order);
+    setCategories((prev) => [...prev, { id, name: newCategoryName.trim(), order }]);
     setNewCategoryName("");
+  }
+
+  async function moveCategory(index: number, dir: -1 | 1) {
+    const target = index + dir;
+    if (target < 0 || target >= categories.length) return;
+    const reordered = [...categories];
+    [reordered[index], reordered[target]] = [reordered[target], reordered[index]];
+    const withOrder = reordered.map((c, i) => ({ ...c, order: i }));
+    setCategories(withOrder);
+    try {
+      await updateCategoryOrders(withOrder.map((c) => ({ id: c.id, order: c.order })));
+    } catch (err) {
+      console.error(err);
+      setCategories(categories);
+    }
   }
 
   function startEditCategory(c: Category) {
@@ -240,11 +256,33 @@ export default function AdminPage() {
           </form>
           {categories.length > 0 && (
             <ul className="mt-3 flex flex-col gap-2">
-              {categories.map((c) => (
+              {categories.map((c, i) => (
                 <li
                   key={c.id}
                   className="flex items-center gap-2 bg-gray-100 text-gray-700 px-3 py-2 rounded-lg text-sm"
                 >
+                  {editingCategoryId !== c.id && (
+                    <div className="flex flex-col">
+                      <button
+                        type="button"
+                        onClick={() => moveCategory(i, -1)}
+                        disabled={i === 0}
+                        className="text-gray-500 hover:text-gray-800 disabled:opacity-30 leading-none text-xs"
+                        aria-label="上へ"
+                      >
+                        ▲
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => moveCategory(i, 1)}
+                        disabled={i === categories.length - 1}
+                        className="text-gray-500 hover:text-gray-800 disabled:opacity-30 leading-none text-xs"
+                        aria-label="下へ"
+                      >
+                        ▼
+                      </button>
+                    </div>
+                  )}
                   {editingCategoryId === c.id ? (
                     <>
                       <input

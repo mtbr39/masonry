@@ -11,22 +11,40 @@ import {
   setDoc,
   updateDoc,
   deleteDoc,
+  writeBatch,
 } from "firebase/firestore";
 import { db } from "./firebase";
 import { Category, Photo, CanvasItem } from "./types";
 
 export async function getCategories(): Promise<Category[]> {
   const snap = await getDocs(collection(db, "categories"));
-  return snap.docs.map((d) => ({ id: d.id, name: d.data().name as string }));
+  const cats = snap.docs.map((d) => {
+    const data = d.data();
+    return {
+      id: d.id,
+      name: data.name as string,
+      order: typeof data.order === "number" ? (data.order as number) : Number.MAX_SAFE_INTEGER,
+    };
+  });
+  cats.sort((a, b) => a.order - b.order || a.name.localeCompare(b.name));
+  return cats;
 }
 
-export async function addCategory(name: string): Promise<string> {
-  const ref = await addDoc(collection(db, "categories"), { name });
+export async function addCategory(name: string, order: number): Promise<string> {
+  const ref = await addDoc(collection(db, "categories"), { name, order });
   return ref.id;
 }
 
 export async function updateCategory(id: string, name: string): Promise<void> {
   await updateDoc(doc(db, "categories", id), { name });
+}
+
+export async function updateCategoryOrders(items: { id: string; order: number }[]): Promise<void> {
+  const batch = writeBatch(db);
+  for (const it of items) {
+    batch.update(doc(db, "categories", it.id), { order: it.order });
+  }
+  await batch.commit();
 }
 
 export async function deleteCategory(id: string): Promise<void> {
