@@ -24,6 +24,20 @@ export default function HomePage() {
   const textRefs = useRef(new Map<string, HTMLSpanElement>());
   const [lineRange, setLineRange] = useState<{ top: number; bottom: number; activeTop: number; activeBottom: number } | null>(null);
 
+  // モバイル上部メニュー：active を中央に。項目幅はテキストに合わせ、gap を固定。
+  // translateX は active の実測中央位置から算出。
+  const mobileRowRef = useRef<HTMLDivElement>(null);
+  const mobileItemRefs = useRef(new Map<string, HTMLButtonElement>());
+  const [mobileTranslateX, setMobileTranslateX] = useState(0);
+  // dragDelta を「カテゴリ何個分」へ正規化するための基準距離（コンテナ幅/3）
+  const [mobileRefStep, setMobileRefStep] = useState(0);
+  // スワイプ中のドラッグ量（px）。リリースでカテゴリ切替後に 0 へ。
+  const [dragDelta, setDragDelta] = useState(0);
+  const [isDragging, setIsDragging] = useState(false);
+  const touchStartXRef = useRef(0);
+  const touchStartYRef = useRef(0);
+  const swipeLockedRef = useRef<"h" | "v" | null>(null);
+
   useEffect(() => {
     if (!containerRef.current) return;
     const { clientWidth, clientHeight } = containerRef.current;
@@ -98,6 +112,89 @@ export default function HomePage() {
     else textRefs.current.delete(id);
   }, []);
 
+  const registerMobileItemRef = useCallback((id: string) => (el: HTMLButtonElement | null) => {
+    if (el) mobileItemRefs.current.set(id, el);
+    else mobileItemRefs.current.delete(id);
+  }, []);
+
+  // モバイルメニュー：active 実測中央 → コンテナ中央へ寄せる translateX を算出
+  const computeMobileTranslate = useCallback(() => {
+    const row = mobileRowRef.current;
+    const active = mobileItemRefs.current.get(selectedCategory);
+    if (!row || !active) return;
+    const containerWidth = row.parentElement?.clientWidth ?? window.innerWidth;
+    const activeCenter = active.offsetLeft + active.offsetWidth / 2;
+    setMobileTranslateX(containerWidth / 2 - activeCenter);
+    setMobileRefStep(containerWidth / 1.5);
+  }, [selectedCategory]);
+
+  useLayoutEffect(() => {
+    computeMobileTranslate();
+    const raf = requestAnimationFrame(computeMobileTranslate);
+    window.addEventListener("resize", computeMobileTranslate);
+    const ro = new ResizeObserver(computeMobileTranslate);
+    if (mobileRowRef.current) ro.observe(mobileRowRef.current);
+    mobileItemRefs.current.forEach((el) => ro.observe(el));
+    if (typeof document !== "undefined" && "fonts" in document) {
+      document.fonts.ready.then(computeMobileTranslate).catch(() => {});
+    }
+    return () => {
+      cancelAnimationFrame(raf);
+      ro.disconnect();
+      window.removeEventListener("resize", computeMobileTranslate);
+    };
+  }, [computeMobileTranslate, categories]);
+
+  // スワイプ：横方向と判定したらカテゴリを切り替え（リリース時にスナップ）
+  const onMobileTouchStart = (e: React.TouchEvent<HTMLDivElement>) => {
+    touchStartXRef.current = e.touches[0].clientX;
+    touchStartYRef.current = e.touches[0].clientY;
+    swipeLockedRef.current = null;
+    setIsDragging(true);
+    setDragDelta(0);
+  };
+  const onMobileTouchMove = (e: React.TouchEvent<HTMLDivElement>) => {
+    const dx = e.touches[0].clientX - touchStartXRef.current;
+    const dy = e.touches[0].clientY - touchStartYRef.current;
+    if (swipeLockedRef.current == null) {
+      if (Math.abs(dx) > 8 || Math.abs(dy) > 8) {
+        swipeLockedRef.current = Math.abs(dx) > Math.abs(dy) ? "h" : "v";
+      }
+    }
+    if (swipeLockedRef.current === "h") {
+      if (e.cancelable) e.preventDefault();
+      setDragDelta(dx);
+    }
+  };
+  const finishMobileSwipe = () => {
+    if (!isDragging) return;
+    const idx = categories.findIndex((c) => c.id === selectedCategory);
+    if (swipeLockedRef.current === "h" && idx >= 0 && Math.abs(dragDelta) >= 20) {
+      // ドラッグ後にコンテナ中央へ来るべき位置 = active 中央 - dragDelta（row 内座標）。
+      // 全項目から実測中央が最も近いものを選ぶ。
+      const active = mobileItemRefs.current.get(selectedCategory);
+      if (active) {
+        const target = active.offsetLeft + active.offsetWidth / 2 - dragDelta;
+        let bestIdx = idx;
+        let bestDist = Infinity;
+        categories.forEach((c, i) => {
+          const el = mobileItemRefs.current.get(c.id);
+          if (!el) return;
+          const center = el.offsetLeft + el.offsetWidth / 2;
+          const d = Math.abs(center - target);
+          if (d < bestDist) {
+            bestDist = d;
+            bestIdx = i;
+          }
+        });
+        if (bestIdx !== idx) setSelectedCategory(categories[bestIdx].id);
+      }
+    }
+    setIsDragging(false);
+    setDragDelta(0);
+    swipeLockedRef.current = null;
+  };
+
   // 縦線の位置をテキスト実寸から算出。フォント／レイアウト確定後に再計測。
   useLayoutEffect(() => {
     computeLineRange();
@@ -118,13 +215,14 @@ export default function HomePage() {
   }, [computeLineRange]);
 
   const selectedReady = !!selectedCategory && !!layouts[selectedCategory];
+  const mobileSelectedIndex = Math.max(0, categories.findIndex((c) => c.id === selectedCategory));
 
   return (
     <div className="h-screen bg-white text-foreground flex flex-col overflow-hidden">
       <div className="relative flex-1 min-h-0">
         {/* カテゴリサイドバー */}
         {categories.length > 0 && (
-          <nav className="absolute top-0 left-0 h-full w-72 px-4 py-4 flex flex-col gap-1 overflow-y-auto z-10 backdrop-blur-sm pt-16" style={{ backgroundColor: `rgba(255,255,255,${NAV_OPACITY})` }}>
+          <nav className="hidden md:flex absolute top-0 left-0 h-full w-72 px-4 py-4 flex-col gap-1 overflow-y-auto z-10 backdrop-blur-sm pt-16" style={{ backgroundColor: `rgba(255,255,255,${NAV_OPACITY})` }}>
             <div ref={navListRef} className="relative flex flex-col" style={{ gap: 24 }}>
               {lineRange && lineRange.activeTop - NAV_LINE_TEXT_GAP > lineRange.top + NAV_LINE_TEXT_GAP && (
                 <div
@@ -163,6 +261,50 @@ export default function HomePage() {
                   </span>
                 </button>
               ))}
+            </div>
+          </nav>
+        )}
+
+        {/* モバイル：上部中央寄せ横メニュー（active が中央、左右スワイプで切替） */}
+        {categories.length > 0 && (
+          <nav
+            className="md:hidden absolute top-0 left-0 right-0 z-10 backdrop-blur-sm py-4 overflow-hidden"
+            style={{ backgroundColor: `rgba(255,255,255,${NAV_OPACITY})`, touchAction: "pan-y" }}
+            onTouchStart={onMobileTouchStart}
+            onTouchMove={onMobileTouchMove}
+            onTouchEnd={finishMobileSwipe}
+            onTouchCancel={finishMobileSwipe}
+          >
+            <div
+              ref={mobileRowRef}
+              className={`flex items-center whitespace-nowrap will-change-transform ${isDragging ? "" : "transition-transform duration-300 ease-out"}`}
+              style={{
+                transform: `translateX(${mobileTranslateX + dragDelta}px)`,
+                gap: 48,
+              }}
+            >
+              {categories.map((c, i) => {
+                const isActive = c.id === selectedCategory;
+                // 画面中央からの距離（slot 単位）。スクロール量に応じて遠い項目も連続的にフェードイン。
+                const dragSlots = mobileRefStep > 0 ? dragDelta / mobileRefStep : 0;
+                const dist = (i - mobileSelectedIndex) + dragSlots;
+                const opacity = Math.max(0, Math.min(1, 2 - Math.abs(dist)));
+                return (
+                  <button
+                    key={c.id}
+                    ref={registerMobileItemRef(c.id)}
+                    onClick={() => setSelectedCategory(c.id)}
+                    className={`shrink-0 px-2 py-1 text-center transition-colors ${
+                      isActive
+                        ? `text-foreground font-light ${NAV_ACTIVE_TEXT_SIZE}`
+                        : "text-gray-400 text-base"
+                    } ${isDragging ? "" : "transition-opacity duration-300 ease-out"}`}
+                    style={{ opacity }}
+                  >
+                    {c.name}
+                  </button>
+                );
+              })}
             </div>
           </nav>
         )}
