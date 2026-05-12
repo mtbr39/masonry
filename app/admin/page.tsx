@@ -6,7 +6,7 @@ import { signOut } from "firebase/auth";
 import { ref, uploadBytesResumable, getDownloadURL } from "firebase/storage";
 import { useAuth } from "@/context/AuthContext";
 import { auth, storage } from "@/lib/firebase";
-import { getCategories, addCategory, addPhoto, updateCategory, deleteCategory, updateCategoryOrders } from "@/lib/firestore";
+import { getCategories, addCategory, addPhoto, updateCategory, deleteCategory, updateCategoryOrders, updateCategoryAudio } from "@/lib/firestore";
 import { Category } from "@/lib/types";
 
 const MAX_WIDTH = 2000;
@@ -64,6 +64,56 @@ export default function AdminPage() {
   const [message, setMessage] = useState("");
   const [dragOver, setDragOver] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
+  const [audioUploading, setAudioUploading] = useState<Record<string, number | null>>({});
+  const audioInputRefs = useRef(new Map<string, HTMLInputElement>());
+
+  function pickAudioForCategory(id: string) {
+    audioInputRefs.current.get(id)?.click();
+  }
+
+  async function handleAudioChange(categoryId: string, e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+    if (!file.type.startsWith("audio/")) {
+      alert("音声ファイルを選択してください");
+      return;
+    }
+    setAudioUploading((prev) => ({ ...prev, [categoryId]: 0 }));
+    try {
+      const storageRef = ref(storage, `audio/${categoryId}_${Date.now()}_${file.name}`);
+      const task = uploadBytesResumable(storageRef, file);
+      await new Promise<void>((resolve, reject) => {
+        task.on(
+          "state_changed",
+          (snap) => {
+            const pct = Math.round((snap.bytesTransferred / snap.totalBytes) * 100);
+            setAudioUploading((prev) => ({ ...prev, [categoryId]: pct }));
+          },
+          reject,
+          resolve
+        );
+      });
+      const url = await getDownloadURL(storageRef);
+      await updateCategoryAudio(categoryId, url);
+      setCategories((prev) => prev.map((c) => (c.id === categoryId ? { ...c, audioUrl: url } : c)));
+    } catch (err) {
+      console.error(err);
+      alert("音声のアップロードに失敗しました");
+    } finally {
+      setAudioUploading((prev) => {
+        const next = { ...prev };
+        delete next[categoryId];
+        return next;
+      });
+    }
+  }
+
+  async function handleRemoveAudio(categoryId: string) {
+    if (!confirm("このカテゴリの音楽を削除しますか？")) return;
+    await updateCategoryAudio(categoryId, null);
+    setCategories((prev) => prev.map((c) => (c.id === categoryId ? { ...c, audioUrl: undefined } : c)));
+  }
 
   useEffect(() => {
     if (!loading && !user) router.replace("/admin/login");
@@ -314,6 +364,45 @@ export default function AdminPage() {
                   ) : (
                     <>
                       <span className="flex-1">{c.name}</span>
+                      <input
+                        ref={(el) => {
+                          if (el) audioInputRefs.current.set(c.id, el);
+                          else audioInputRefs.current.delete(c.id);
+                        }}
+                        type="file"
+                        accept="audio/*"
+                        className="hidden"
+                        onChange={(e) => handleAudioChange(c.id, e)}
+                      />
+                      {audioUploading[c.id] != null ? (
+                        <span className="text-xs text-gray-500">{audioUploading[c.id]}%</span>
+                      ) : c.audioUrl ? (
+                        <>
+                          <span className="text-xs text-green-600" title={c.audioUrl}>♪ 設定済み</span>
+                          <button
+                            type="button"
+                            onClick={() => pickAudioForCategory(c.id)}
+                            className="text-blue-600 hover:text-blue-800 text-xs"
+                          >
+                            音楽差替
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveAudio(c.id)}
+                            className="text-red-500 hover:text-red-700 text-xs"
+                          >
+                            音楽削除
+                          </button>
+                        </>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => pickAudioForCategory(c.id)}
+                          className="text-blue-600 hover:text-blue-800 text-xs"
+                        >
+                          音楽追加
+                        </button>
+                      )}
                       <button
                         type="button"
                         onClick={() => startEditCategory(c)}

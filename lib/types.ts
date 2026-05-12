@@ -2,6 +2,7 @@ export interface Category {
   id: string;
   name: string;
   order: number;
+  audioUrl?: string;
 }
 
 export interface Photo {

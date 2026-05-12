@@ -214,6 +214,38 @@ export default function HomePage() {
     };
   }, [computeLineRange]);
 
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const [isPlaying, setIsPlaying] = useState(false);
+  const currentAudioUrl = categories.find((c) => c.id === selectedCategory)?.audioUrl;
+
+  useEffect(() => {
+    const audio = audioRef.current;
+    if (!audio) return;
+    if (!currentAudioUrl) {
+      audio.pause();
+      audio.removeAttribute("src");
+      audio.load();
+      setIsPlaying(false);
+      return;
+    }
+    if (audio.src !== currentAudioUrl) {
+      audio.src = currentAudioUrl;
+      if (isPlaying) audio.play().catch(() => setIsPlaying(false));
+    }
+  }, [currentAudioUrl, isPlaying]);
+
+  const togglePlay = () => {
+    const audio = audioRef.current;
+    if (!audio || !currentAudioUrl) return;
+    if (audio.paused) {
+      if (audio.src !== currentAudioUrl) audio.src = currentAudioUrl;
+      audio.play().then(() => setIsPlaying(true)).catch(() => setIsPlaying(false));
+    } else {
+      audio.pause();
+      setIsPlaying(false);
+    }
+  };
+
   const selectedReady = !!selectedCategory && !!layouts[selectedCategory];
   const mobileSelectedIndex = Math.max(0, categories.findIndex((c) => c.id === selectedCategory));
 
@@ -400,6 +432,34 @@ export default function HomePage() {
             })}
         </div>
       </div>
+
+      {/* 下部の丸い再生ボタン */}
+      <audio
+        ref={audioRef}
+        loop
+        onPlay={() => setIsPlaying(true)}
+        onPause={() => setIsPlaying(false)}
+        onEnded={() => setIsPlaying(false)}
+      />
+      {currentAudioUrl && (
+      <button
+        type="button"
+        onClick={togglePlay}
+        aria-label={isPlaying ? "一時停止" : "再生"}
+        className="fixed bottom-6 left-1/2 -translate-x-1/2 z-20 w-14 h-14 rounded-full shadow-lg flex items-center justify-center transition-all bg-white hover:bg-gray-100 text-foreground border border-gray-200"
+      >
+        {isPlaying ? (
+          <svg viewBox="0 0 24 24" className="w-6 h-6" fill="currentColor" aria-hidden="true">
+            <rect x="6" y="5" width="4" height="14" rx="1" />
+            <rect x="14" y="5" width="4" height="14" rx="1" />
+          </svg>
+        ) : (
+          <svg viewBox="0 0 24 24" className="w-6 h-6" fill="currentColor" aria-hidden="true">
+            <path d="M8 5.5v13a1 1 0 0 0 1.55.83l10-6.5a1 1 0 0 0 0-1.66l-10-6.5A1 1 0 0 0 8 5.5Z" />
+          </svg>
+        )}
+      </button>
+      )}
     </div>
   );
 }

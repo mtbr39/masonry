@@ -24,6 +24,7 @@ export async function getCategories(): Promise<Category[]> {
       id: d.id,
       name: data.name as string,
       order: typeof data.order === "number" ? (data.order as number) : Number.MAX_SAFE_INTEGER,
+      audioUrl: typeof data.audioUrl === "string" ? (data.audioUrl as string) : undefined,
     };
   });
   cats.sort((a, b) => a.order - b.order || a.name.localeCompare(b.name));
@@ -37,6 +38,10 @@ export async function addCategory(name: string, order: number): Promise<string> 
 
 export async function updateCategory(id: string, name: string): Promise<void> {
   await updateDoc(doc(db, "categories", id), { name });
+}
+
+export async function updateCategoryAudio(id: string, audioUrl: string | null): Promise<void> {
+  await updateDoc(doc(db, "categories", id), { audioUrl: audioUrl ?? null });
 }
 
 export async function updateCategoryOrders(items: { id: string; order: number }[]): Promise<void> {
