@@ -21,11 +21,15 @@ function computeLayoutTransform(
   const targets = photos.length > 0 ? photos : items;
   const effectiveW = containerW - offsetLeft;
   const effectiveH = containerH - offsetTop;
+  // モバイル（offsetTop > 0）は縦中心をコンテナ全体に合わせる。
+  // PC（offsetLeft > 0）は従来通りサイドバーを除いた領域の中心に合わせる。
+  const centerY = offsetTop > 0 ? containerH / 2 : offsetTop + effectiveH / 2;
+  const centerX = offsetTop > 0 ? offsetLeft + effectiveW / 2 : offsetLeft + effectiveW / 2;
   if (targets.length === 0) {
     const scale = Math.min(effectiveW / CANVAS_W, effectiveH / CANVAS_H);
     return {
-      x: offsetLeft + (effectiveW - CANVAS_W * scale) / 2,
-      y: offsetTop + (effectiveH - CANVAS_H * scale) / 2,
+      x: centerX - (CANVAS_W * scale) / 2,
+      y: centerY - (CANVAS_H * scale) / 2,
       scale,
     };
   }
@@ -37,8 +41,8 @@ function computeLayoutTransform(
   const cy = (minY + maxY) / 2;
   const scale = Math.min(effectiveW / (maxX - minX), effectiveH / (maxY - minY)) * INITIAL_FIT_RATIO;
   return {
-    x: offsetLeft + effectiveW / 2 - cx * scale,
-    y: offsetTop + effectiveH / 2 - cy * scale,
+    x: centerX - cx * scale,
+    y: centerY - cy * scale,
     scale,
   };
 }
