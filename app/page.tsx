@@ -101,12 +101,47 @@ export default function HomePage() {
     return () => window.removeEventListener("resize", measureContainer);
   }, [measureContainer, categories]);
 
+  // URL ハッシュ（#<カテゴリ名> または #<id>）から対象カテゴリを解決
+  const resolveCategoryFromHash = useCallback((cats: Category[]): string | null => {
+    if (typeof window === "undefined") return null;
+    const raw = window.location.hash.replace(/^#/, "");
+    if (!raw) return null;
+    const decoded = decodeURIComponent(raw).toLowerCase();
+    const match = cats.find(
+      (c) => c.id.toLowerCase() === decoded || c.name.toLowerCase() === decoded,
+    );
+    return match?.id ?? null;
+  }, []);
+
   useEffect(() => {
     getCategories().then((cats) => {
       setCategories(cats);
-      if (cats.length > 0) setSelectedCategory(cats[0].id);
+      if (cats.length === 0) return;
+      const fromHash = resolveCategoryFromHash(cats);
+      setSelectedCategory(fromHash ?? cats[0].id);
     });
-  }, []);
+  }, [resolveCategoryFromHash]);
+
+  // 選択カテゴリ変更時に URL ハッシュを更新（履歴を増やさない replaceState）
+  useEffect(() => {
+    if (!selectedCategory || categories.length === 0) return;
+    const cat = categories.find((c) => c.id === selectedCategory);
+    if (!cat) return;
+    const next = `#${encodeURIComponent(cat.name)}`;
+    if (window.location.hash !== next) {
+      window.history.replaceState(null, "", `${window.location.pathname}${window.location.search}${next}`);
+    }
+  }, [selectedCategory, categories]);
+
+  // ブラウザの戻る/進む・外部からのハッシュ変更に追従
+  useEffect(() => {
+    const onHashChange = () => {
+      const id = resolveCategoryFromHash(categories);
+      if (id && id !== selectedCategory) setSelectedCategory(id);
+    };
+    window.addEventListener("hashchange", onHashChange);
+    return () => window.removeEventListener("hashchange", onHashChange);
+  }, [categories, selectedCategory, resolveCategoryFromHash]);
 
   // 全カテゴリ分のレイアウトを取得して `layouts` に格納。
   // 選択中を最優先、その後にそれ以外を順次。fetchCanvasLayoutCached が
