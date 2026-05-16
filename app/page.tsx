@@ -8,6 +8,40 @@ import { fetchCanvasLayoutCached } from "@/lib/canvasCache";
 
 const CANVAS_W = 3000;
 const CANVAS_H = 2000;
+const INITIAL_FIT_RATIO = 0.8; // バウンディングボックスに対する初期表示の拡大率
+
+function computeLayoutTransform(
+  items: CanvasItem[],
+  containerW: number,
+  containerH: number,
+  offsetLeft = 0,
+  offsetTop = 0,
+): { x: number; y: number; scale: number } {
+  const photos = items.filter((i) => i.type === "photo" && i.photoUrl);
+  const targets = photos.length > 0 ? photos : items;
+  const effectiveW = containerW - offsetLeft;
+  const effectiveH = containerH - offsetTop;
+  if (targets.length === 0) {
+    const scale = Math.min(effectiveW / CANVAS_W, effectiveH / CANVAS_H);
+    return {
+      x: offsetLeft + (effectiveW - CANVAS_W * scale) / 2,
+      y: offsetTop + (effectiveH - CANVAS_H * scale) / 2,
+      scale,
+    };
+  }
+  const minX = Math.min(...targets.map((i) => i.x));
+  const minY = Math.min(...targets.map((i) => i.y));
+  const maxX = Math.max(...targets.map((i) => i.x + i.width));
+  const maxY = Math.max(...targets.map((i) => i.y + i.height));
+  const cx = (minX + maxX) / 2;
+  const cy = (minY + maxY) / 2;
+  const scale = Math.min(effectiveW / (maxX - minX), effectiveH / (maxY - minY)) * INITIAL_FIT_RATIO;
+  return {
+    x: offsetLeft + effectiveW / 2 - cx * scale,
+    y: offsetTop + effectiveH / 2 - cy * scale,
+    scale,
+  };
+}
 const NAV_OPACITY = 0.8;           // メニュー背景の不透明度 (0〜1)
 const NAV_ACTIVE_TEXT_SIZE = "text-[1.6875rem]"; // 選択中メニューの文字サイズ (text-lg の 1.5倍)
 const NAV_LINE_WIDTH = "w-0.5";    // メニュー縦線の太さ
@@ -24,8 +58,10 @@ export default function HomePage() {
   const [categories, setCategories] = useState<Category[]>([]);
   const [selectedCategory, setSelectedCategory] = useState<string>("");
   const [layouts, setLayouts] = useState<Record<string, CanvasItem[]>>({});
-  const [initialScale, setInitialScale] = useState<number | null>(null);
+  const [containerSize, setContainerSize] = useState<{ w: number; h: number; offsetLeft: number; offsetTop: number } | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+  const desktopNavRef = useRef<HTMLElement>(null);
+  const mobileNavRef = useRef<HTMLElement>(null);
   const transformRefs = useRef(new Map<string, ReactZoomPanPinchContentRef>());
   const navListRef = useRef<HTMLDivElement>(null);
   const textRefs = useRef(new Map<string, HTMLSpanElement>());
@@ -45,11 +81,21 @@ export default function HomePage() {
   const touchStartYRef = useRef(0);
   const swipeLockedRef = useRef<"h" | "v" | null>(null);
 
-  useEffect(() => {
+  const measureContainer = useCallback(() => {
     if (!containerRef.current) return;
     const { clientWidth, clientHeight } = containerRef.current;
-    setInitialScale(Math.min(clientWidth / CANVAS_W, clientHeight / CANVAS_H));
+    const isMd = window.innerWidth >= 768;
+    const offsetLeft = isMd ? (desktopNavRef.current?.clientWidth ?? 0) : 0;
+    const offsetTop = isMd ? 0 : (mobileNavRef.current?.clientHeight ?? 0);
+    setContainerSize({ w: clientWidth, h: clientHeight, offsetLeft, offsetTop });
   }, []);
+
+  // 初回計測 + ナビがマウントされる categories 変化後にも再計測
+  useLayoutEffect(() => {
+    measureContainer();
+    window.addEventListener("resize", measureContainer);
+    return () => window.removeEventListener("resize", measureContainer);
+  }, [measureContainer, categories]);
 
   useEffect(() => {
     getCategories().then((cats) => {
@@ -76,22 +122,30 @@ export default function HomePage() {
     });
   }, [categories, selectedCategory]);
 
-  // カテゴリ切替時にズーム／パン位置を初期に戻す。
-  // 各カテゴリの TransformWrapper は常時マウントなので ref 経由で setTransform。
+  // layouts を ref で保持。reset effect から最新値を読むためだが deps には含めない。
+  // （他カテゴリ分の layouts 追加でリセットが再発火しないようにするため）
+  const layoutsRef = useRef(layouts);
+  useEffect(() => { layoutsRef.current = layouts; }, [layouts]);
+
+  // selectedCategory または containerSize（ナビ計測含む）が変わるたびにリセット。
+  // レイアウトがまだ届いていない場合は rAF で待つ。
   useEffect(() => {
-    if (!selectedCategory || initialScale == null) return;
+    if (!selectedCategory || !containerSize) return;
     let cancelled = false;
     const reset = () => {
       if (cancelled) return;
+      const layout = layoutsRef.current[selectedCategory];
       const ref = transformRefs.current.get(selectedCategory);
-      if (ref) ref.setTransform(0, 0, initialScale, 0);
-      else requestAnimationFrame(reset);
+      if (ref && layout) {
+        const { x, y, scale } = computeLayoutTransform(layout, containerSize.w, containerSize.h, containerSize.offsetLeft, containerSize.offsetTop);
+        ref.setTransform(x, y, scale, 0);
+      } else {
+        requestAnimationFrame(reset);
+      }
     };
     reset();
-    return () => {
-      cancelled = true;
-    };
-  }, [selectedCategory, initialScale]);
+    return () => { cancelled = true; };
+  }, [selectedCategory, containerSize]);
 
   const computeLineRange = useCallback(() => {
     if (categories.length < 2 || !selectedCategory) {
@@ -281,7 +335,7 @@ export default function HomePage() {
       <div className="relative flex-1 min-h-0">
         {/* カテゴリサイドバー */}
         {categories.length > 0 && (
-          <nav className="hidden md:flex absolute top-0 left-0 h-full w-72 px-4 py-4 flex-col gap-1 overflow-y-auto z-10 backdrop-blur-sm pt-16" style={{ backgroundColor: `rgba(255,255,255,${NAV_OPACITY})` }}>
+          <nav ref={desktopNavRef} className="hidden md:flex absolute top-0 left-0 h-full w-72 px-4 py-4 flex-col gap-1 overflow-y-auto z-10 backdrop-blur-sm pt-16" style={{ backgroundColor: `rgba(255,255,255,${NAV_OPACITY})` }}>
             <div ref={navListRef} className="relative flex flex-col" style={{ gap: 24 }}>
               {lineRange && lineRange.activeTop - NAV_LINE_TEXT_GAP > lineRange.top + NAV_LINE_TEXT_GAP && (
                 <div
@@ -327,6 +381,7 @@ export default function HomePage() {
         {/* モバイル：上部中央寄せ横メニュー（active が中央、左右スワイプで切替） */}
         {categories.length > 0 && (
           <nav
+            ref={mobileNavRef}
             className="md:hidden absolute top-0 left-0 right-0 z-10 backdrop-blur-sm py-4 overflow-hidden"
             style={{ backgroundColor: `rgba(255,255,255,${NAV_OPACITY})`, touchAction: "pan-y" }}
             onTouchStart={onMobileTouchStart}
@@ -373,11 +428,12 @@ export default function HomePage() {
           {!selectedReady && (
             <div className="flex justify-center py-20 text-gray-400">Loading…</div>
           )}
-          {initialScale != null &&
+          {containerSize != null &&
             categories.map((c) => {
               const layout = layouts[c.id];
               if (!layout) return null;
               const isSelected = c.id === selectedCategory;
+              const initT = computeLayoutTransform(layout, containerSize.w, containerSize.h, containerSize.offsetLeft, containerSize.offsetTop);
               return (
                 <div
                   key={c.id}
@@ -396,9 +452,12 @@ export default function HomePage() {
                     }}
                     minScale={0.05}
                     maxScale={4}
-                    initialScale={initialScale}
+                    initialScale={initT.scale}
+                    initialPositionX={initT.x}
+                    initialPositionY={initT.y}
                     wheel={{ step: 0.05 }}
                     panning={{ velocityDisabled: false }}
+                    alignmentAnimation={{ disabled: true }}
                   >
                     <TransformComponent wrapperStyle={{ width: "100%", height: "100%" }}>
                       <div
