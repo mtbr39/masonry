@@ -115,15 +115,17 @@ export default function AdminPage() {
     setCategories((prev) => prev.map((c) => (c.id === categoryId ? { ...c, audioUrl: undefined } : c)));
   }
 
-  useEffect(() => {
-    if (!loading && !user) router.replace("/admin/login");
-  }, [user, loading, router]);
+  const isAdmin = !!user && !user.isAnonymous;
 
   useEffect(() => {
-    if (user) {
+    if (!loading && !isAdmin) router.replace("/admin/login");
+  }, [isAdmin, loading, router]);
+
+  useEffect(() => {
+    if (isAdmin) {
       getCategories().then(setCategories);
     }
-  }, [user]);
+  }, [isAdmin]);
 
   function addFiles(incoming: File[]) {
     const imageFiles = incoming.filter((f) => f.type.startsWith("image/"));
@@ -253,7 +255,7 @@ export default function AdminPage() {
 
   const pendingCount = files.filter((f) => f.status === "pending").length;
 
-  if (loading || !user) return null;
+  if (loading || !isAdmin) return null;
 
   return (
     <main className="min-h-screen bg-white text-foreground">

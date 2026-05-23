@@ -53,18 +53,20 @@ export default function CanvasEditorPage() {
   const dragRef = useRef<DragState | null>(null);
   const sidebarResizing = useRef(false);
 
-  useEffect(() => {
-    if (!loading && !user) router.replace("/admin/login");
-  }, [user, loading, router]);
+  const isAdmin = !!user && !user.isAnonymous;
 
   useEffect(() => {
-    if (!user) return;
+    if (!loading && !isAdmin) router.replace("/admin/login");
+  }, [isAdmin, loading, router]);
+
+  useEffect(() => {
+    if (!isAdmin) return;
     getPhotos().then(setPhotos);
     getCategories().then((cats) => {
       setCategories(cats);
       if (cats.length > 0) setSelectedCategory((prev) => prev || cats[0].id);
     });
-  }, [user]);
+  }, [isAdmin]);
 
   useEffect(() => {
     if (!user || !selectedCategory) return;
@@ -264,7 +266,7 @@ export default function CanvasEditorPage() {
 
   const selected = items.find((i) => i.id === selectedId) ?? null;
 
-  if (loading || !user) return null;
+  if (loading || !isAdmin) return null;
 
   return (
     <div className="h-screen bg-gray-100 flex flex-col overflow-hidden select-none">

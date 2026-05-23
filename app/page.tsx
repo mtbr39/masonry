@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { getCategories } from "@/lib/firestore";
 import { CanvasItem, Category } from "@/lib/types";
 import { fetchCanvasLayoutCached } from "@/lib/canvasCache";
@@ -8,14 +8,16 @@ import AudioPlayer from "./_components/AudioPlayer";
 import CategorySidebar from "./_components/CategorySidebar";
 import MobileCategoryNav from "./_components/MobileCategoryNav";
 import CanvasView, { type ContainerSize } from "./_components/CanvasView";
+import OpenPageView from "./_components/OpenPageView";
+import { OPEN_PAGE_ID, isOpenPage, openPageEntry } from "@/lib/openPage";
 
 // URL ハッシュ（#<カテゴリ名> または #<id>）から対象カテゴリを解決
-function resolveCategoryFromHash(cats: Category[]): string | null {
+function resolveCategoryFromHash(navList: Category[]): string | null {
   if (typeof window === "undefined") return null;
   const raw = window.location.hash.replace(/^#/, "");
   if (!raw) return null;
   const decoded = decodeURIComponent(raw).toLowerCase();
-  const match = cats.find(
+  const match = navList.find(
     (c) => c.id.toLowerCase() === decoded || c.name.toLowerCase() === decoded,
   );
   return match?.id ?? null;
@@ -49,32 +51,39 @@ export default function HomePage() {
   useEffect(() => {
     getCategories().then((cats) => {
       setCategories(cats);
-      if (cats.length === 0) return;
-      const fromHash = resolveCategoryFromHash(cats);
-      setSelectedCategory(fromHash ?? cats[0].id);
+      const openOrder = cats.length > 0 ? Math.max(...cats.map((c) => c.order)) + 1 : 0;
+      const navList = [...cats, openPageEntry(openOrder)];
+      const fromHash = resolveCategoryFromHash(navList);
+      setSelectedCategory(fromHash ?? (cats[0]?.id ?? OPEN_PAGE_ID));
     });
   }, []);
 
+  const navCategories: Category[] = useMemo(() => {
+    const openOrder =
+      categories.length > 0 ? Math.max(...categories.map((c) => c.order)) + 1 : 0;
+    return [...categories, openPageEntry(openOrder)];
+  }, [categories]);
+
   // 選択カテゴリ変更時に URL ハッシュを更新（履歴を増やさない replaceState）
   useEffect(() => {
-    if (!selectedCategory || categories.length === 0) return;
-    const cat = categories.find((c) => c.id === selectedCategory);
+    if (!selectedCategory) return;
+    const cat = navCategories.find((c) => c.id === selectedCategory);
     if (!cat) return;
     const next = `#${encodeURIComponent(cat.name)}`;
     if (window.location.hash !== next) {
       window.history.replaceState(null, "", `${window.location.pathname}${window.location.search}${next}`);
     }
-  }, [selectedCategory, categories]);
+  }, [selectedCategory, navCategories]);
 
   // ブラウザの戻る/進む・外部からのハッシュ変更に追従
   useEffect(() => {
     const onHashChange = () => {
-      const id = resolveCategoryFromHash(categories);
+      const id = resolveCategoryFromHash(navCategories);
       if (id && id !== selectedCategory) setSelectedCategory(id);
     };
     window.addEventListener("hashchange", onHashChange);
     return () => window.removeEventListener("hashchange", onHashChange);
-  }, [categories, selectedCategory]);
+  }, [navCategories, selectedCategory]);
 
   // 全カテゴリ分のレイアウトを取得して `layouts` に格納。
   // 選択中を最優先、その後にそれ以外を順次。fetchCanvasLayoutCached が
@@ -94,30 +103,39 @@ export default function HomePage() {
     });
   }, [categories, selectedCategory]);
 
-  const currentAudioUrl = categories.find((c) => c.id === selectedCategory)?.audioUrl;
+  const showOpen = isOpenPage(selectedCategory);
+  const currentAudioUrl = showOpen
+    ? undefined
+    : categories.find((c) => c.id === selectedCategory)?.audioUrl;
 
   return (
     <div className="h-screen bg-white text-foreground flex flex-col overflow-hidden">
       <div className="relative flex-1 min-h-0">
         <CategorySidebar
           ref={desktopNavRef}
-          categories={categories}
+          categories={navCategories}
           selectedCategory={selectedCategory}
           onSelect={setSelectedCategory}
         />
         <MobileCategoryNav
           ref={mobileNavRef}
-          categories={categories}
+          categories={navCategories}
           selectedCategory={selectedCategory}
           onSelect={setSelectedCategory}
         />
-        <CanvasView
-          ref={containerRef}
-          categories={categories}
-          selectedCategory={selectedCategory}
-          layouts={layouts}
-          containerSize={containerSize}
-        />
+        {showOpen ? (
+          <div ref={containerRef} className="absolute inset-0 overflow-hidden">
+            <OpenPageView containerSize={containerSize} />
+          </div>
+        ) : (
+          <CanvasView
+            ref={containerRef}
+            categories={categories}
+            selectedCategory={selectedCategory}
+            layouts={layouts}
+            containerSize={containerSize}
+          />
+        )}
       </div>
       <AudioPlayer audioUrl={currentAudioUrl} />
     </div>
