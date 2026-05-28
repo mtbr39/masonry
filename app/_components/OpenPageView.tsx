@@ -7,7 +7,7 @@ import {
   type ReactZoomPanPinchContentRef,
 } from "react-zoom-pan-pinch";
 import { doc, onSnapshot } from "firebase/firestore";
-import { ref as storageRef, uploadBytes, getDownloadURL } from "firebase/storage";
+import { ref as storageRef, uploadBytes, getDownloadURL, deleteObject } from "firebase/storage";
 import { signInAnonymously } from "firebase/auth";
 import { auth, db, storage } from "@/lib/firebase";
 import { saveCanvasLayout } from "@/lib/firestore";
@@ -16,8 +16,10 @@ import {
   OPEN_PAGE_ID,
   OPEN_CANVAS_W,
   OPEN_COL_W,
-  computeNextPosition,
+  insertAtTop,
+  removeAndCompact,
 } from "@/lib/openPage";
+import { useAuth } from "@/context/AuthContext";
 import type { ContainerSize } from "./CanvasView";
 
 const MAX_UPLOAD_W = 1200;
@@ -69,6 +71,8 @@ type Props = {
 };
 
 export default function OpenPageView({ containerSize }: Props) {
+  const { user } = useAuth();
+  const isAdmin = !!user && !user.isAnonymous;
   const [items, setItems] = useState<CanvasItem[]>([]);
   const [busy, setBusy] = useState(false);
   const [textOpen, setTextOpen] = useState(false);
@@ -116,18 +120,41 @@ export default function OpenPageView({ containerSize }: Props) {
       const path = `open/${Date.now()}_${Math.random().toString(36).slice(2, 8)}.jpg`;
       await uploadBytes(storageRef(storage, path), blob);
       const url = await getDownloadURL(storageRef(storage, path));
-      const pos = computeNextPosition(itemsRef.current, width, height);
+      const { position, updatedItems } = insertAtTop(itemsRef.current, width, height);
       const newItem: CanvasItem = {
         id: uid(),
         type: "photo",
-        ...pos,
+        ...position,
         zIndex: 1,
         photoUrl: url,
       };
-      await saveCanvasLayout([...itemsRef.current, newItem], OPEN_PAGE_ID);
+      await saveCanvasLayout([...updatedItems, newItem], OPEN_PAGE_ID);
     } catch (err) {
       console.error(err);
       alert("アップロードに失敗しました");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleDeleteItem(id: string) {
+    if (!isAdmin) return;
+    if (!confirm("この投稿を削除しますか？")) return;
+    setBusy(true);
+    try {
+      const target = itemsRef.current.find((it) => it.id === id);
+      const next = removeAndCompact(itemsRef.current, id);
+      await saveCanvasLayout(next, OPEN_PAGE_ID);
+      if (target?.type === "photo" && target.photoUrl) {
+        try {
+          await deleteObject(storageRef(storage, target.photoUrl));
+        } catch (err) {
+          console.warn("storage delete failed", err);
+        }
+      }
+    } catch (err) {
+      console.error(err);
+      alert("削除に失敗しました");
     } finally {
       setBusy(false);
     }
@@ -150,18 +177,18 @@ export default function OpenPageView({ containerSize }: Props) {
         .reduce((sum, ln) => sum + Math.max(1, Math.ceil(ln.length / charsPerLine)), 0);
       const contentH = Math.round(lines * fontSize * 1.4 + 120);
       const boxH = Math.max(minH, contentH);
-      const pos = computeNextPosition(itemsRef.current, OPEN_COL_W, boxH);
+      const { position, updatedItems } = insertAtTop(itemsRef.current, OPEN_COL_W, boxH);
       const newItem: CanvasItem = {
         id: uid(),
         type: "text",
-        ...pos,
+        ...position,
         zIndex: 1,
         content: text,
         fontSize,
         color: "#161616",
         fontWeight: "normal",
       };
-      await saveCanvasLayout([...itemsRef.current, newItem], OPEN_PAGE_ID);
+      await saveCanvasLayout([...updatedItems, newItem], OPEN_PAGE_ID);
       setTextValue("");
       setTextOpen(false);
     } catch (err) {
@@ -263,6 +290,32 @@ export default function OpenPageView({ containerSize }: Props) {
                     {item.content}
                   </div>
                 ) : null}
+                {isAdmin && (
+                  <button
+                    onClick={() => handleDeleteItem(item.id)}
+                    disabled={busy}
+                    style={{
+                      position: "absolute",
+                      top: 16,
+                      right: 16,
+                      width: 64,
+                      height: 64,
+                      borderRadius: "9999px",
+                      background: "rgba(0,0,0,0.7)",
+                      color: "#fff",
+                      fontSize: 32,
+                      lineHeight: 1,
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      cursor: "pointer",
+                      border: "none",
+                    }}
+                    aria-label="削除"
+                  >
+                    ×
+                  </button>
+                )}
               </div>
             ))}
           </div>
