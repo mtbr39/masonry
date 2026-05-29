@@ -2,9 +2,11 @@ import type { Metadata } from "next";
 import "./globals.css";
 import { AuthProvider } from "@/context/AuthContext";
 
+const siteTitle = process.env.NEXT_PUBLIC_SITE_TITLE || "ONO";
+
 export const metadata: Metadata = {
-  title: "Photo Portfolio",
-  description: "Photo portfolio site",
+  title: siteTitle,
+  description: siteTitle,
 };
 
 export default function RootLayout({

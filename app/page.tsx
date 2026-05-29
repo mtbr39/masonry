@@ -51,17 +51,17 @@ export default function HomePage() {
   useEffect(() => {
     getCategories().then((cats) => {
       setCategories(cats);
-      const openOrder = cats.length > 0 ? Math.max(...cats.map((c) => c.order)) + 1 : 0;
-      const navList = [...cats, openPageEntry(openOrder)];
+      const openOrder = cats.length > 0 ? Math.min(...cats.map((c) => c.order)) - 1 : 0;
+      const navList = [openPageEntry(openOrder), ...cats];
       const fromHash = resolveCategoryFromHash(navList);
-      setSelectedCategory(fromHash ?? (cats[0]?.id ?? OPEN_PAGE_ID));
+      setSelectedCategory(fromHash ?? OPEN_PAGE_ID);
     });
   }, []);
 
   const navCategories: Category[] = useMemo(() => {
     const openOrder =
-      categories.length > 0 ? Math.max(...categories.map((c) => c.order)) + 1 : 0;
-    return [...categories, openPageEntry(openOrder)];
+      categories.length > 0 ? Math.min(...categories.map((c) => c.order)) - 1 : 0;
+    return [openPageEntry(openOrder), ...categories];
   }, [categories]);
 
   // 選択カテゴリ変更時に URL ハッシュを更新（履歴を増やさない replaceState）
