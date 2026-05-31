@@ -22,6 +22,8 @@ export interface CanvasItem {
   width: number;
   height: number;
   zIndex: number;
+  // 投稿者のニックネーム（任意）。設定時は左上に重ねて表示する
+  nickname?: string;
   // photo
   photoUrl?: string;
   // text

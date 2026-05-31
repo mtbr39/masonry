@@ -77,6 +77,11 @@ export default function OpenPageView({ containerSize }: Props) {
   const [busy, setBusy] = useState(false);
   const [textOpen, setTextOpen] = useState(false);
   const [textValue, setTextValue] = useState("");
+  const [textNickname, setTextNickname] = useState("");
+  const [imgOpen, setImgOpen] = useState(false);
+  const [imgFile, setImgFile] = useState<File | null>(null);
+  const [imgPreview, setImgPreview] = useState<string>("");
+  const [imgNickname, setImgNickname] = useState("");
   const fileInputRef = useRef<HTMLInputElement>(null);
   const transformRef = useRef<ReactZoomPanPinchContentRef | null>(null);
   const itemsRef = useRef<CanvasItem[]>([]);
@@ -109,26 +114,50 @@ export default function OpenPageView({ containerSize }: Props) {
     transformRef.current.setTransform(x, containerSize.offsetTop, scale, 0);
   }, [containerSize]);
 
-  async function handleImagePick(e: React.ChangeEvent<HTMLInputElement>) {
+  function handleImagePick(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     e.target.value = "";
     if (!file) return;
+    setImgFile(file);
+    setImgPreview((prev) => {
+      if (prev) URL.revokeObjectURL(prev);
+      return URL.createObjectURL(file);
+    });
+    setImgNickname("");
+    setImgOpen(true);
+  }
+
+  function closeImageModal() {
+    setImgOpen(false);
+    setImgFile(null);
+    setImgNickname("");
+    setImgPreview((prev) => {
+      if (prev) URL.revokeObjectURL(prev);
+      return "";
+    });
+  }
+
+  async function handleSubmitImage() {
+    if (!imgFile) return;
     setBusy(true);
     try {
       await ensureAnonAuth();
-      const { blob, width, height } = await resizeImage(file);
+      const { blob, width, height } = await resizeImage(imgFile);
       const path = `open/${Date.now()}_${Math.random().toString(36).slice(2, 8)}.jpg`;
       await uploadBytes(storageRef(storage, path), blob);
       const url = await getDownloadURL(storageRef(storage, path));
       const { position, updatedItems } = insertAtTop(itemsRef.current, width, height);
+      const nickname = imgNickname.trim();
       const newItem: CanvasItem = {
         id: uid(),
         type: "photo",
         ...position,
         zIndex: 1,
         photoUrl: url,
+        ...(nickname ? { nickname } : {}),
       };
       await saveCanvasLayout([...updatedItems, newItem], OPEN_PAGE_ID);
+      closeImageModal();
     } catch (err) {
       console.error(err);
       alert("アップロードに失敗しました");
@@ -178,6 +207,7 @@ export default function OpenPageView({ containerSize }: Props) {
       const contentH = Math.round(lines * fontSize * 1.4 + 120);
       const boxH = Math.max(minH, contentH);
       const { position, updatedItems } = insertAtTop(itemsRef.current, OPEN_COL_W, boxH);
+      const nickname = textNickname.trim();
       const newItem: CanvasItem = {
         id: uid(),
         type: "text",
@@ -187,9 +217,11 @@ export default function OpenPageView({ containerSize }: Props) {
         fontSize,
         color: "#161616",
         fontWeight: "normal",
+        ...(nickname ? { nickname } : {}),
       };
       await saveCanvasLayout([...updatedItems, newItem], OPEN_PAGE_ID);
       setTextValue("");
+      setTextNickname("");
       setTextOpen(false);
     } catch (err) {
       console.error(err);
@@ -290,6 +322,36 @@ export default function OpenPageView({ containerSize }: Props) {
                     {item.content}
                   </div>
                 ) : null}
+                {item.nickname && (
+                  <div
+                    style={{
+                      position: "absolute",
+                      maxWidth: "90%",
+                      fontSize: 72,
+                      lineHeight: 1.2,
+                      whiteSpace: "nowrap",
+                      overflow: "hidden",
+                      textOverflow: "ellipsis",
+                      userSelect: "none",
+                      pointerEvents: "none",
+                      ...(item.type === "photo"
+                        ? {
+                            top: 0,
+                            left: 0,
+                            background: "rgba(0,0,0,0.55)",
+                            color: "#fff",
+                            padding: "10px 20px",
+                          }
+                        : {
+                            top: 28,
+                            left: 36,
+                            color: "#161616",
+                          }),
+                    }}
+                  >
+                    {item.nickname}
+                  </div>
+                )}
                 {isAdmin && (
                   <button
                     onClick={() => handleDeleteItem(item.id)}
@@ -337,7 +399,7 @@ export default function OpenPageView({ containerSize }: Props) {
           onClick={() => fileInputRef.current?.click()}
           className="pointer-events-auto px-5 py-2.5 rounded-full bg-gray-200 text-foreground text-sm shadow-lg hover:bg-gray-300 disabled:opacity-50 transition-colors"
         >
-          {busy ? "送信中…" : "画像を追加"}
+          画像を追加
         </button>
         <button
           disabled={busy}
@@ -368,9 +430,20 @@ export default function OpenPageView({ containerSize }: Props) {
               placeholder="ここに書く（最大100文字）"
             />
             <p className="text-xs text-gray-500 text-right">{textValue.length} / 100</p>
+            <input
+              type="text"
+              value={textNickname}
+              onChange={(e) => setTextNickname(e.target.value.slice(0, 20))}
+              maxLength={20}
+              className="w-full border border-gray-300 rounded-lg p-2.5 text-foreground focus:outline-none focus:ring-2 focus:ring-blue-500"
+              placeholder="ニックネーム（任意）"
+            />
             <div className="flex justify-end gap-2">
               <button
-                onClick={() => setTextOpen(false)}
+                onClick={() => {
+                  setTextOpen(false);
+                  setTextNickname("");
+                }}
                 className="px-4 py-2 text-sm text-gray-500 hover:text-foreground"
               >
                 キャンセル
@@ -381,6 +454,59 @@ export default function OpenPageView({ containerSize }: Props) {
                 className="px-4 py-2 text-sm rounded-lg bg-foreground text-white disabled:opacity-50"
               >
                 送信
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {imgOpen && (
+        <div
+          className="absolute inset-0 bg-black/40 flex items-center justify-center z-20 p-6"
+          onClick={closeImageModal}
+        >
+          <div
+            className="bg-white rounded-2xl p-5 w-full max-w-md flex flex-col gap-3"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 className="font-semibold text-foreground">画像を追加</h3>
+            {imgPreview && (
+              <div className="relative w-full overflow-hidden rounded-lg bg-gray-100">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={imgPreview}
+                  alt=""
+                  className="block w-full max-h-64 object-contain"
+                />
+                {imgNickname.trim() && (
+                  <div className="absolute top-0 left-0 max-w-[90%] truncate bg-black/55 text-white text-base px-3 py-1.5">
+                    {imgNickname.trim()}
+                  </div>
+                )}
+              </div>
+            )}
+            <input
+              type="text"
+              autoFocus
+              value={imgNickname}
+              onChange={(e) => setImgNickname(e.target.value.slice(0, 20))}
+              maxLength={20}
+              className="w-full border border-gray-300 rounded-lg p-2.5 text-foreground focus:outline-none focus:ring-2 focus:ring-blue-500"
+              placeholder="ニックネーム（任意）"
+            />
+            <div className="flex justify-end gap-2">
+              <button
+                onClick={closeImageModal}
+                className="px-4 py-2 text-sm text-gray-500 hover:text-foreground"
+              >
+                キャンセル
+              </button>
+              <button
+                onClick={handleSubmitImage}
+                disabled={busy || !imgFile}
+                className="px-4 py-2 text-sm rounded-lg bg-foreground text-white disabled:opacity-50"
+              >
+                {busy ? "送信中…" : "貼る"}
               </button>
             </div>
           </div>
