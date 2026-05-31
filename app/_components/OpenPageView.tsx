@@ -386,7 +386,7 @@ export default function OpenPageView({ containerSize }: Props) {
       )}
 
       {/* upload bar */}
-      <div className="absolute bottom-0 left-0 right-0 flex justify-center gap-3 p-4 pointer-events-none z-10">
+      <div className="absolute bottom-0 left-0 right-0 flex justify-center gap-6 p-4 pb-8 pointer-events-none z-10">
         <input
           ref={fileInputRef}
           type="file"

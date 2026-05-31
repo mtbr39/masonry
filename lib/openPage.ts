@@ -47,17 +47,21 @@ export function insertAtTop(
   const w = OPEN_COL_W;
   const h = Math.max(60, Math.round(origH * scale));
 
-  // 各列の現在の上端（最小 y）
+  // 各列の現在の上端（最小 y）と下端（最大 y+height）
   const colTops: number[] = new Array(OPEN_COLS).fill(Infinity);
+  const colBottoms: number[] = new Array(OPEN_COLS).fill(0);
   for (const it of items) {
     const c = colIndexOf(it);
-    if (c >= 0 && c < OPEN_COLS && it.y < colTops[c]) colTops[c] = it.y;
+    if (c < 0 || c >= OPEN_COLS) continue;
+    if (it.y < colTops[c]) colTops[c] = it.y;
+    const bottom = it.y + it.height;
+    if (bottom > colBottoms[c]) colBottoms[c] = bottom;
   }
 
-  // 上が最も空いている列を選ぶ（colTops が最大 = 上端が低い位置にある）
+  // 最も短い列（下端が最小）を選んで 2 列に均等に積む
   let pick = 0;
   for (let i = 1; i < OPEN_COLS; i++) {
-    if (colTops[i] > colTops[pick]) pick = i;
+    if (colBottoms[i] < colBottoms[pick]) pick = i;
   }
 
   // 挿入列：新アイテムが MARGIN_Y に入るよう既存アイテムをシフト
