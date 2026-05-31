@@ -99,11 +99,16 @@ export default function CanvasEditorPage() {
           };
         } else {
           // resize
-          return {
-            ...item,
-            width: Math.max(40, drag.origW + dxCanvas),
-            height: Math.max(20, drag.origH + dyCanvas),
-          };
+          let newW = Math.max(40, drag.origW + dxCanvas);
+          let newH = Math.max(20, drag.origH + dyCanvas);
+          // Shift を押している間は元の縦横比を保持して拡大縮小する
+          if (e.shiftKey && drag.origW > 0 && drag.origH > 0) {
+            const ratio = drag.origW / drag.origH;
+            const scale = Math.max(newW / drag.origW, newH / drag.origH);
+            newW = Math.max(40, drag.origW * scale);
+            newH = newW / ratio;
+          }
+          return { ...item, width: newW, height: newH };
         }
       })
     );
@@ -488,6 +493,7 @@ export default function CanvasEditorPage() {
                               cursor: "nwse-resize",
                               zIndex: 9999,
                             }}
+                            title="ドラッグでリサイズ / Shift で元の比率を保持"
                             onMouseDown={(e) => onResizeMouseDown(e, item)}
                           />
                         )}
